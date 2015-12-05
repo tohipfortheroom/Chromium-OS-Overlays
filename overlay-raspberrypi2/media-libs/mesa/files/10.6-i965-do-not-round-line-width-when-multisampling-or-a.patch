@@ -1,0 +1,147 @@
+From f9a18acb56c69b24c1e47cd326dc98e14fadcf94 Mon Sep 17 00:00:00 2001
+From: Iago Toral Quiroga <itoral@igalia.com>
+Date: Wed, 10 Jun 2015 09:07:32 +0200
+Subject: [PATCH] i965: do not round line width when multisampling or
+ antialiaing are enabled
+
+In commit fe74fee8fa721a we rounded the line width to the nearest integer to
+match the GLES3 spec requirements stated in section 13.4.2.1, but that seems
+to break a dEQP test that renders wide lines in some multisampling scenarios.
+
+Ian noted that the Open 4.4 spec has the following similar text:
+
+    "The actual width of non-antialiased lines is determined by rounding the
+    supplied width to the nearest integer, then clamping it to the
+    implementation-dependent maximum non-antialiased line width."
+
+and suggested that when ES removed antialiased lines, they removed
+"non-antialised" from that paragraph but probably should not have.
+
+Going by that note, this patch restricts the quantization implemented in
+fe74fee8fa721a only to regular aliased lines. This seems to keep the
+tests fixed with that commit passing while fixing the broken test.
+
+v2:
+  - Drop one of the clamps (Ken, Marius)
+  - Add a rule to prevent advertising line widths that when rounded go beyond
+    the limits allowed by the hardware (Ken)
+  - Update comments in the code accordingly (Ian)
+  - Put the code in a utility function (Ian)
+
+Fixes:
+dEQP-GLES3.functional.rasterization.fbo.rbo_multisample_max.primitives.lines_wide
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=90749
+
+Reviewed-by: Kenneth Graunke <kenneth@whitecape.org>
+Reviewed-by: Ian Romanick <ian.d.romanick@intel.com>
+Cc: "10.6" <mesa-stable@lists.freedesktop.org>
+---
+ src/mesa/drivers/dri/i965/brw_context.c   |  7 +++++++
+ src/mesa/drivers/dri/i965/brw_util.h      | 15 +++++++++++++++
+ src/mesa/drivers/dri/i965/gen6_sf_state.c |  6 +-----
+ src/mesa/drivers/dri/i965/gen7_sf_state.c |  6 +-----
+ src/mesa/drivers/dri/i965/gen8_sf_state.c |  6 +-----
+ 5 files changed, 25 insertions(+), 15 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_context.c b/src/mesa/drivers/dri/i965/brw_context.c
+index 652d9a3..ab04704 100644
+--- a/src/mesa/drivers/dri/i965/brw_context.c
++++ b/src/mesa/drivers/dri/i965/brw_context.c
+@@ -442,6 +442,13 @@ brw_initialize_context_constants(struct brw_context *brw)
+       ctx->Const.LineWidthGranularity = 0.5;
+    }
+ 
++   /* For non-antialiased lines, we have to round the line width to the
++    * nearest whole number. Make sure that we don't advertise a line
++    * width that, when rounded, will be beyond the actual hardware
++    * maximum.
++    */
++   assert(roundf(ctx->Const.MaxLineWidth) <= ctx->Const.MaxLineWidth);
++
+    ctx->Const.MinPointSize = 1.0;
+    ctx->Const.MinPointSizeAA = 1.0;
+    ctx->Const.MaxPointSize = 255.0;
+diff --git a/src/mesa/drivers/dri/i965/brw_util.h b/src/mesa/drivers/dri/i965/brw_util.h
+index b548d23..671d72e 100644
+--- a/src/mesa/drivers/dri/i965/brw_util.h
++++ b/src/mesa/drivers/dri/i965/brw_util.h
+@@ -35,9 +35,24 @@
+ 
+ #include "main/mtypes.h"
+ #include "main/imports.h"
++#include "brw_context.h"
+ 
+ extern GLuint brw_translate_blend_factor( GLenum factor );
+ extern GLuint brw_translate_blend_equation( GLenum mode );
+ extern GLenum brw_fix_xRGB_alpha(GLenum function);
+ 
++static inline float
++brw_get_line_width(struct brw_context *brw)
++{
++   /* From the OpenGL 4.4 spec:
++    *
++    * "The actual width of non-antialiased lines is determined by rounding
++    * the supplied width to the nearest integer, then clamping it to the
++    * implementation-dependent maximum non-antialiased line width."
++    */
++   return CLAMP(!brw->ctx.Multisample._Enabled && !brw->ctx.Line.SmoothFlag
++                ? roundf(brw->ctx.Line.Width) : brw->ctx.Line.Width,
++                0.0, brw->ctx.Const.MaxLineWidth);
++}
++
+ #endif
+diff --git a/src/mesa/drivers/dri/i965/gen6_sf_state.c b/src/mesa/drivers/dri/i965/gen6_sf_state.c
+index e445ce2..d577764 100644
+--- a/src/mesa/drivers/dri/i965/gen6_sf_state.c
++++ b/src/mesa/drivers/dri/i965/gen6_sf_state.c
+@@ -361,11 +361,7 @@ upload_sf_state(struct brw_context *brw)
+ 
+    /* _NEW_LINE */
+    {
+-      /* OpenGL dictates that line width should be rounded to the nearest
+-       * integer
+-       */
+-      float line_width =
+-         roundf(CLAMP(ctx->Line.Width, 0.0, ctx->Const.MaxLineWidth));
++      float line_width = brw_get_line_width(brw);
+       uint32_t line_width_u3_7 = U_FIXED(line_width, 7);
+ 
+       /* Line width of 0 is not allowed when MSAA enabled */
+diff --git a/src/mesa/drivers/dri/i965/gen7_sf_state.c b/src/mesa/drivers/dri/i965/gen7_sf_state.c
+index 58e3337..87ff284 100644
+--- a/src/mesa/drivers/dri/i965/gen7_sf_state.c
++++ b/src/mesa/drivers/dri/i965/gen7_sf_state.c
+@@ -192,11 +192,7 @@ upload_sf_state(struct brw_context *brw)
+ 
+    /* _NEW_LINE */
+    {
+-      /* OpenGL dictates that line width should be rounded to the nearest
+-       * integer
+-       */
+-      float line_width =
+-         roundf(CLAMP(ctx->Line.Width, 0.0, ctx->Const.MaxLineWidth));
++      float line_width = brw_get_line_width(brw);
+       uint32_t line_width_u3_7 = U_FIXED(line_width, 7);
+       /* Line width of 0 is not allowed when MSAA enabled */
+       if (ctx->Multisample._Enabled) {
+diff --git a/src/mesa/drivers/dri/i965/gen8_sf_state.c b/src/mesa/drivers/dri/i965/gen8_sf_state.c
+index 52a21b6..83ef62b 100644
+--- a/src/mesa/drivers/dri/i965/gen8_sf_state.c
++++ b/src/mesa/drivers/dri/i965/gen8_sf_state.c
+@@ -154,11 +154,7 @@ upload_sf(struct brw_context *brw)
+        dw1 |= GEN6_SF_VIEWPORT_TRANSFORM_ENABLE;
+ 
+    /* _NEW_LINE */
+-   /* OpenGL dictates that line width should be rounded to the nearest
+-    * integer
+-    */
+-   float line_width =
+-      roundf(CLAMP(ctx->Line.Width, 0.0, ctx->Const.MaxLineWidth));
++   float line_width = brw_get_line_width(brw);
+    uint32_t line_width_u3_7 = U_FIXED(line_width, 7);
+    if (line_width_u3_7 == 0)
+       line_width_u3_7 = 1;
+-- 
+1.9.1
+

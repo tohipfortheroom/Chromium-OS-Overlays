@@ -1,0 +1,36 @@
+From f7aad9da20b13c98f77d6a690b327716f39c0a47 Mon Sep 17 00:00:00 2001
+From: Dave Airlie <airlied@gmail.com>
+Date: Sun, 5 Apr 2015 16:48:47 +1000
+Subject: [PATCH] mesa/teximage: use correct extension for accept stencil
+ texture.
+
+This was using the wrong extension, ARB_stencil_texturing
+doesn't mention any changes in this area.
+
+Fixes "dEQP-GLES3.functional.fbo.completeness.renderable.texture.
+stencil.stencil_index8."
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=90751
+Signed-off-by: Dave Airlie <airlied@redhat.com>
+Reviewed-by: Ilia Mirkin <imirkin@alum.mit.edu>
+Reviewed-by: Kenneth Graunke <kenneth@whitecape.org>
+---
+ src/mesa/main/teximage.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/mesa/main/teximage.c b/src/mesa/main/teximage.c
+index 7bc1da7..3d85615 100644
+--- a/src/mesa/main/teximage.c
++++ b/src/mesa/main/teximage.c
+@@ -222,7 +222,7 @@ _mesa_base_tex_format( struct gl_context *ctx, GLint internalFormat )
+       }
+    }
+ 
+-   if (ctx->Extensions.ARB_stencil_texturing) {
++   if (ctx->Extensions.ARB_texture_stencil8) {
+       switch (internalFormat) {
+       case GL_STENCIL_INDEX:
+       case GL_STENCIL_INDEX1:
+-- 
+1.9.1
+

@@ -1,0 +1,239 @@
+From a63c8a524b01e802cf2505099f930c0cb97df0b2 Mon Sep 17 00:00:00 2001
+From: Kalyan Kondapally <kondapallykalyancontribute@gmail.com>
+Date: Wed, 7 Jan 2015 20:30:25 -0800
+Subject: [PATCH] Mesa: Add support for GL_OES_texture_*float* extensions.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch series adds support for following GLES2 Texture Float extensions:
+1)GL_OES_texture_float,
+2)GL_OES_texture_half_float,
+3)GL_OES_texture_float_linear,
+4)GL_OES_texture_half_float_linear.
+
+This patch adds basic infrastructure and needed boolean flags to advertise
+support for these extensions, by default the support is disabled. Next patch
+in the series introduces support for HALF_FLOAT_OES token.
+
+v4: take assert away and make valid_filter_for_float conditional (Tapani),
+    fix the alphabetical order (Emil)
+
+Signed-off-by: Kevin Rogovin <kevin.rogovin@intel.com>
+Signed-off-by: Kalyan Kondapally <kalyan.kondapally@intel.com>
+Reviewed-by: Tapani Pälli <tapani.palli@intel.com>
+---
+ src/mesa/main/extensions.c |  4 +++
+ src/mesa/main/mtypes.h     |  6 +++++
+ src/mesa/main/teximage.c   | 64 ++++++++++++++++++++++++++++++++++++++++++++++
+ src/mesa/main/texobj.c     | 58 +++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 132 insertions(+)
+
+diff --git a/src/mesa/main/extensions.c b/src/mesa/main/extensions.c
+index 16f1241..bfe7d99 100644
+--- a/src/mesa/main/extensions.c
++++ b/src/mesa/main/extensions.c
+@@ -317,6 +317,10 @@ static const struct extension extension_table[] = {
+    { "GL_OES_texture_3D",                          o(EXT_texture3D),                                      ES2, 2005 },
+    { "GL_OES_texture_cube_map",                    o(ARB_texture_cube_map),                         ES1,       2007 },
+    { "GL_OES_texture_env_crossbar",                o(ARB_texture_env_crossbar),                     ES1,       2005 },
++   { "GL_OES_texture_float",                       o(OES_texture_float),                                  ES2, 2005 },
++   { "GL_OES_texture_float_linear",                o(OES_texture_float_linear),                           ES2, 2005 },
++   { "GL_OES_texture_half_float",                  o(OES_texture_half_float),                             ES2, 2005 },
++   { "GL_OES_texture_half_float_linear",           o(OES_texture_half_float_linear),                      ES2, 2005 },
+    { "GL_OES_texture_mirrored_repeat",             o(dummy_true),                                   ES1,       2005 },
+    { "GL_OES_texture_npot",                        o(ARB_texture_non_power_of_two),                 ES1 | ES2, 2005 },
+    { "GL_OES_vertex_array_object",                 o(dummy_true),                                   ES1 | ES2, 2010 },
+diff --git a/src/mesa/main/mtypes.h b/src/mesa/main/mtypes.h
+index 145927a..81a7c0e 100644
+--- a/src/mesa/main/mtypes.h
++++ b/src/mesa/main/mtypes.h
+@@ -1220,6 +1220,8 @@ struct gl_texture_object
+    GLboolean Purgeable;        /**< Is the buffer purgeable under memory
+                                     pressure? */
+    GLboolean Immutable;        /**< GL_ARB_texture_storage */
++   GLboolean _IsFloat;         /**< GL_OES_float_texture */
++   GLboolean _IsHalfFloat;     /**< GL_OES_half_float_texture */
+ 
+    GLuint MinLevel;            /**< GL_ARB_texture_view */
+    GLuint MinLayer;            /**< GL_ARB_texture_view */
+@@ -3859,6 +3861,10 @@ struct gl_extensions
+    GLboolean OES_draw_texture;
+    GLboolean OES_depth_texture_cube_map;
+    GLboolean OES_EGL_image_external;
++   GLboolean OES_texture_float;
++   GLboolean OES_texture_float_linear;
++   GLboolean OES_texture_half_float;
++   GLboolean OES_texture_half_float_linear;
+    GLboolean OES_compressed_ETC1_RGB8_texture;
+    GLboolean extension_sentinel;
+    /** The extension string */
+diff --git a/src/mesa/main/teximage.c b/src/mesa/main/teximage.c
+index 5ada94f..ed08ddb 100644
+--- a/src/mesa/main/teximage.c
++++ b/src/mesa/main/teximage.c
+@@ -62,7 +62,58 @@
+  */
+ #define NEW_COPY_TEX_STATE (_NEW_BUFFERS | _NEW_PIXEL)
+ 
++/**
++ * Returns a corresponding internal floating point format for a given base
++ * format as specifed by OES_texture_float. In case of GL_FLOAT, the internal
++ * format needs to be a 32 bit component and in case of GL_HALF_FLOAT_OES it
++ * needs to be a 16 bit component.
++ *
++ * For example, given base format GL_RGBA, type GL_Float return GL_RGBA32F_ARB.
++ */
++static GLenum
++adjust_for_oes_float_texture(GLenum format, GLenum type)
++{
++   switch (type) {
++   case GL_FLOAT:
++      switch (format) {
++      case GL_RGBA:
++         return GL_RGBA32F;
++      case GL_RGB:
++         return GL_RGB32F;
++      case GL_ALPHA:
++         return GL_ALPHA32F_ARB;
++      case GL_LUMINANCE:
++         return GL_LUMINANCE32F_ARB;
++      case GL_LUMINANCE_ALPHA:
++         return GL_LUMINANCE_ALPHA32F_ARB;
++      default:
++         break;
++      }
++      break;
+ 
++   case GL_HALF_FLOAT_OES:
++      switch (format) {
++      case GL_RGBA:
++         return GL_RGBA16F;
++      case GL_RGB:
++         return GL_RGB16F;
++      case GL_ALPHA:
++         return GL_ALPHA16F_ARB;
++      case GL_LUMINANCE:
++         return GL_LUMINANCE16F_ARB;
++      case GL_LUMINANCE_ALPHA:
++         return GL_LUMINANCE_ALPHA16F_ARB;
++      default:
++         break;
++      }
++      break;
++
++   default:
++      break;
++   }
++
++   return format;
++}
+ 
+ /**
+  * Return the simple base format for a given internal texture format.
+@@ -3182,6 +3233,19 @@ teximage(struct gl_context *ctx, GLboolean compressed, GLuint dims,
+       texFormat = _mesa_glenum_to_compressed_format(internalFormat);
+    }
+    else {
++      /* In case of HALF_FLOAT_OES or FLOAT_OES, find corresponding sized
++       * internal floating point format for the given base format.
++       */
++      if (_mesa_is_gles(ctx) && format == internalFormat) {
++         if (type == GL_FLOAT) {
++            texObj->_IsFloat = GL_TRUE;
++         } else if (type == GL_HALF_FLOAT_OES || type == GL_HALF_FLOAT) {
++            texObj->_IsHalfFloat = GL_TRUE;
++         }
++
++         internalFormat = adjust_for_oes_float_texture(format, type);
++      }
++
+       texFormat = _mesa_choose_texture_format(ctx, texObj, target, level,
+                                               internalFormat, format, type);
+    }
+diff --git a/src/mesa/main/texobj.c b/src/mesa/main/texobj.c
+index a99dd7a..59090db 100644
+--- a/src/mesa/main/texobj.c
++++ b/src/mesa/main/texobj.c
+@@ -49,6 +49,54 @@
+ /** \name Internal functions */
+ /*@{*/
+ 
++/**
++ * This function checks for all valid combinations of Min and Mag filters for
++ * Float types, when extensions like OES_texture_float and
++ * OES_texture_float_linear are supported. OES_texture_float mentions support
++ * for NEAREST, NEAREST_MIPMAP_NEAREST magnification and minification filters.
++ * Mag filters like LINEAR and min filters like NEAREST_MIPMAP_LINEAR,
++ * LINEAR_MIPMAP_NEAREST and LINEAR_MIPMAP_LINEAR are only valid in case
++ * OES_texture_float_linear is supported.
++ *
++ * Returns true in case the filter is valid for given Float type else false.
++ */
++static bool
++valid_filter_for_float(const struct gl_context *ctx,
++                       const struct gl_texture_object *obj)
++{
++   switch (obj->Sampler.MagFilter) {
++   case GL_LINEAR:
++      if (obj->_IsHalfFloat && !ctx->Extensions.OES_texture_half_float_linear) {
++         return false;
++      } else if (obj->_IsFloat && !ctx->Extensions.OES_texture_float_linear) {
++         return false;
++      }
++   case GL_NEAREST:
++   case GL_NEAREST_MIPMAP_NEAREST:
++      break;
++   default:
++      unreachable("Invalid mag filter");
++   }
++
++   switch (obj->Sampler.MinFilter) {
++   case GL_LINEAR:
++   case GL_NEAREST_MIPMAP_LINEAR:
++   case GL_LINEAR_MIPMAP_NEAREST:
++   case GL_LINEAR_MIPMAP_LINEAR:
++      if (obj->_IsHalfFloat && !ctx->Extensions.OES_texture_half_float_linear) {
++         return false;
++      } else if (obj->_IsFloat && !ctx->Extensions.OES_texture_float_linear) {
++         return false;
++      }
++   case GL_NEAREST:
++   case GL_NEAREST_MIPMAP_NEAREST:
++      break;
++   default:
++      unreachable("Invalid min filter");
++   }
++
++   return true;
++}
+ 
+ /**
+  * Return the gl_texture_object for a given ID.
+@@ -408,6 +456,8 @@ _mesa_copy_texture_object( struct gl_texture_object *dest,
+    dest->_MipmapComplete = src->_MipmapComplete;
+    COPY_4V(dest->Swizzle, src->Swizzle);
+    dest->_Swizzle = src->_Swizzle;
++   dest->_IsHalfFloat = src->_IsHalfFloat;
++   dest->_IsFloat = src->_IsFloat;
+ 
+    dest->RequiredTextureImageUnits = src->RequiredTextureImageUnits;
+ }
+@@ -641,6 +691,14 @@ _mesa_test_texobj_completeness( const struct gl_context *ctx,
+       t->_IsIntegerFormat = datatype == GL_INT || datatype == GL_UNSIGNED_INT;
+    }
+ 
++   /* Check if the texture type is Float or HalfFloatOES and ensure Min and Mag
++    * filters are supported in this case.
++    */
++   if (_mesa_is_gles(ctx) && !valid_filter_for_float(ctx, t)) {
++      incomplete(t, BASE, "Filter is not supported with Float types.");
++      return;
++   }
++
+    /* Compute _MaxLevel (the maximum mipmap level we'll sample from given the
+     * mipmap image sizes and GL_TEXTURE_MAX_LEVEL state).
+     */
+-- 
+2.4.3.573.g4eafbef
+

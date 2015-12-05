@@ -1,0 +1,61 @@
+From f83b9e58f6e8a748def367c7d523eb7285b1aeb7 Mon Sep 17 00:00:00 2001
+From: Kenneth Graunke <kenneth@whitecape.org>
+Date: Tue, 9 Jun 2015 14:33:47 -0700
+Subject: [PATCH] i965: Momentarily pretend to support ARB_texture_stencil8 for
+ blits.
+
+Broadwell's stencil blitting code attempts to bind a renderbuffer as a
+texture, using dd->BindRenderbufferTexImage().
+
+This calls _mesa_init_teximage_fields(), which then attempts to set
+img->_BaseFormat = _mesa_base_tex_format(ctx, internalFormat), which
+assert fails if internalFormat is GL_STENCIL_INDEX8 but
+ARB_texture_stencil8 is unsupported.
+
+To work around this, just pretend to support the extension momentarily,
+during the blit.  Meta has already munged a variety of other things in
+the context (including the API!), so it's not that much worse than what
+we're already doing.
+
+Fixes regressions since commit f7aad9da20b13c98f77d6a690b327716f39c0a47
+(mesa/teximage: use correct extension for accept stencil texture.).
+
+v2: Add an XXX comment explaining the situation (requested by Jason
+    Ekstrand and Martin Peres), and an assert that we don't support
+    the extension so we remember to remove this hack (requested by
+    Neil Roberts).
+
+Signed-off-by: Kenneth Graunke <kenneth@whitecape.org>
+Reviewed-by: Jason Ekstrand <jason.ekstrand@intel.com>
+---
+ src/mesa/drivers/dri/i965/brw_meta_stencil_blit.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_meta_stencil_blit.c b/src/mesa/drivers/dri/i965/brw_meta_stencil_blit.c
+index fc7018d..d079197 100644
+--- a/src/mesa/drivers/dri/i965/brw_meta_stencil_blit.c
++++ b/src/mesa/drivers/dri/i965/brw_meta_stencil_blit.c
+@@ -414,6 +414,12 @@ brw_meta_stencil_blit(struct brw_context *brw,
+    GLenum target;
+ 
+    _mesa_meta_fb_tex_blit_begin(ctx, &blit);
++   /* XXX: Pretend to support stencil textures so _mesa_base_tex_format()
++    * returns a valid format.  When we properly support the extension, we
++    * should remove this.
++    */
++   assert(ctx->Extensions.ARB_texture_stencil8 == false);
++   ctx->Extensions.ARB_texture_stencil8 = true;
+ 
+    _mesa_GenFramebuffers(1, &fbo);
+    /* Force the surface to be configured for level zero. */
+@@ -451,6 +457,7 @@ brw_meta_stencil_blit(struct brw_context *brw,
+    _mesa_DrawArrays(GL_TRIANGLE_FAN, 0, 4);
+ 
+ error:
++   ctx->Extensions.ARB_texture_stencil8 = false;
+    _mesa_meta_fb_tex_blit_end(ctx, target, &blit);
+    _mesa_meta_end(ctx);
+ 
+-- 
+1.9.1
+

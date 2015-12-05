@@ -1,0 +1,27 @@
+From 1f07c667cf2ec2d15d9e6fbce4715e24f14a51cd Mon Sep 17 00:00:00 2001
+From: James Ausmus <james.ausmus@intel.com>
+Date: Mon, 4 May 2015 14:55:19 -0700
+Subject: [PATCH 02/27] CHROMIUM: 9.1-mesa-st-no-flush-front.patch
+
+Change-Id: I3827b4bc5d62ecaed2fb40734d2e5c38e72c7404
+Signed-off-by: James Ausmus <james.ausmus@intel.com>
+---
+ src/mesa/state_tracker/st_manager.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/mesa/state_tracker/st_manager.c b/src/mesa/state_tracker/st_manager.c
+index 840f76a..c150642 100644
+--- a/src/mesa/state_tracker/st_manager.c
++++ b/src/mesa/state_tracker/st_manager.c
+@@ -501,8 +501,6 @@ st_context_flush(struct st_context_iface *stctxi, unsigned flags,
+    }
+ 
+    st_flush(st, fence, pipe_flags);
+-   if (flags & ST_FLUSH_FRONT)
+-      st_manager_flush_frontbuffer(st);
+ }
+ 
+ static boolean
+-- 
+2.3.1
+

@@ -1,0 +1,31 @@
+From c7ae32346b647ff782eac3c10b3d0f07429d3c25 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Pali=20Roh=C3=A1r?= <pali.rohar@gmail.com>
+Date: Thu, 23 Apr 2015 22:02:07 +0100
+Subject: [PATCH 02/28] mapi: Adding missing string.h include.
+
+File glapi_entrypoint.c calls memcpy() function, but does not include
+string.h header. So compilation can fail at error: implicit declaration
+of function 'memcpy'.
+
+Signed-off-by: Jose Fonseca <jfonseca@vmware.com>
+(cherry picked from commit 29f0f976bd82c04c6c569658c260feaade7394cd)
+---
+ src/mapi/glapi/glapi_entrypoint.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/mapi/glapi/glapi_entrypoint.c b/src/mapi/glapi/glapi_entrypoint.c
+index 7facd8a..f1f7f5e 100644
+--- a/src/mapi/glapi/glapi_entrypoint.c
++++ b/src/mapi/glapi/glapi_entrypoint.c
+@@ -29,6 +29,8 @@
+  */
+ 
+ 
++#include <string.h>
++
+ #include "c11/threads.h"
+ #include "glapi/glapi_priv.h"
+ #include "u_execmem.h"
+-- 
+2.3.1
+
