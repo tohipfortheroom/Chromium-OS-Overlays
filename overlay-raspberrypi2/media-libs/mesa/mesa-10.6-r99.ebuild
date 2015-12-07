@@ -4,6 +4,9 @@
 
 EAPI=4
 
+CROS_WORKON_COMMIT="c2a0600d5b0645533ba442b5ab879b23c2564a4d"
+CROS_WORKON_TREE="1a3cb3ffa016a1e453b5b5c7b6f93ad4050f1e96"
+
 EGIT_REPO_URI="git://anongit.freedesktop.org/mesa/mesa"
 CROS_WORKON_PROJECT="chromiumos/third_party/mesa"
 CROS_WORKON_BLACKLIST="1"
@@ -40,11 +43,11 @@ fi
 # GLES[2]/gl[2]{,ext,platform}.h are SGI-B-2.0
 LICENSE="MIT LGPL-3 SGI-B-2.0"
 SLOT="0"
-KEYWORDS="~*"
+KEYWORDS="*"
 
 INTEL_CARDS="intel"
 RADEON_CARDS="radeon"
-VIDEO_CARDS="${INTEL_CARDS} ${RADEON_CARDS} mach64 mga nouveau r128 savage sis vmware tdfx via freedreno"
+VIDEO_CARDS="${INTEL_CARDS} ${RADEON_CARDS} vc4 mach64 mga nouveau r128 savage sis vmware tdfx via freedreno"
 for card in ${VIDEO_CARDS}; do
 	IUSE_VIDEO_CARDS+=" video_cards_${card}"
 done
@@ -54,6 +57,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	shared-glapi kernel_FreeBSD xlib-glx X"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.60"
+
 # keep correct libdrm and dri2proto dep
 # keep blocks in rdepend for binpkg
 RDEPEND="
@@ -66,8 +70,7 @@ RDEPEND="
 		x11-libs/libXxf86vm
 	)
 	dev-libs/expat
-	dev-libs/libgcrypt
-	virtual/udev
+	sys-fs/udev
 	${LIBDRM_DEPSTRING}
 "
 
@@ -144,13 +147,12 @@ src_prepare() {
 	epatch "${FILESDIR}"/10.3-dri-add-swrast-support-on-top-of-prime-imported.patch
 	epatch "${FILESDIR}"/10.3-dri-in-swrast-use-render-nodes-and-custom-VGEM-dump-.patch
 	epatch "${FILESDIR}"/10.5-i915g-force-tile-x.patch
-	epatch "${FILESDIR}"/10.6-mesa-do-not-use-_glapi_new_nop_table-for-DRI-builds.patch
+	epatch "${FILESDIR}"/10.6-mesa-do-not-use-_glapi_new_nop_table-for-DRI-builds.patch	
 	epatch "${FILESDIR}"/10.6-i965-do-not-round-line-width-when-multisampling-or-a.patch
 	epatch "${FILESDIR}"/10.6-mesa-add-GL_RED-GL_RG-support-for-floating-point-tex.patch
 	epatch "${FILESDIR}"/10.6-mesa-teximage-use-correct-extension-for-accept-stenc.patch
 	epatch "${FILESDIR}"/10.6-i965-Momentarily-pretend-to-support-ARB_texture_sten.patch
 	epatch "${FILESDIR}"/10.6-Revert-i965-Advertise-a-line-width-of-40.0-on-Cherry.patch
-	epatch "${FILESDIR}"/10.6-i965-gen9-Use-custom-MOCS-entries-set-up-by.patch
 
 	base_src_prepare
 
@@ -196,6 +198,8 @@ src_configure() {
 
 		# Freedreno code
 		gallium_driver_enable video_cards_freedreno freedreno
+
+		gallium_driver_enable video_cards_vc4 vc4
 	fi
 
 	export LLVM_CONFIG=${SYSROOT}/usr/bin/llvm-config-host
@@ -228,8 +232,8 @@ src_configure() {
 		$(use_enable xlib-glx) \
 		$(use_enable !xlib-glx dri) \
 		--with-dri-drivers=${DRI_DRIVERS} \
-		--with-gallium-drivers=${GALLIUM_DRIVERS} \
-		$(use egl && echo "--with-egl-platforms=null")
+		--with-gallium-drivers=vc4 \
+		$(use egl && echo "--with-egl-platforms=x11,drm")
 }
 
 src_install() {

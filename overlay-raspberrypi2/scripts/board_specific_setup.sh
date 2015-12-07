@@ -29,14 +29,8 @@ install_raspberrypi_bootloader() {
   sudo mount -o loop,offset=${efi_offset},sizelimit=${efi_size} "$1" \
     "${efi_dir}"
 
-  info "Installing firmware and overlays"
+  info "Installing firmware, kernel and overlays"
   sudo cp -r "${ROOT}/firmware/rpi/"* "${efi_dir}/"
-
-  info "Copying kernel and configuration files"
-  sudo cp "${ROOT}/boot/cmdline.txt" "${efi_dir}/"
-  sudo cp "${ROOT}/boot/config.txt" "${efi_dir}/"
-  sudo cp "${ROOT}/boot/dtImage" "${efi_dir}/kernel.img"
-  sudo cp "${ROOT}/boot/bcm2709-rpi-2-b.dtb" "${efi_dir}/bcm2709-rpi-2-b.dtb"
 
   sudo umount "${efi_dir}"
   rmdir "${efi_dir}"
