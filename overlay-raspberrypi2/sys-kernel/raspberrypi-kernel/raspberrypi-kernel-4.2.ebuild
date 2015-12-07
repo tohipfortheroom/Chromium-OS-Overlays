@@ -3,11 +3,11 @@
 
 EAPI=4
 
-CROS_WORKON_REPO="git://github.com/anholt"
+CROS_WORKON_REPO="git://github.com/raspberrypi"
 CROS_WORKON_PROJECT="linux"
-CROS_WORKON_EGIT_BRANCH="vc4-kms-v3d-rpi2"
+CROS_WORKON_EGIT_BRANCH="rpi-4.2.y"
 CROS_WORKON_BLACKLIST="1"
-CROS_WORKON_COMMIT="b8b2f50546513355fecd9ac44b2355f19a9620a8"
+CROS_WORKON_COMMIT="806e02221caec4ca42adc7aed42f5523bc8fb0dc"
 
 # This must be inherited *after* EGIT/CROS_WORKON variables defined
 inherit git-2 cros-kernel2 cros-workon
@@ -23,14 +23,13 @@ RDEPEND="${DEPEND}"
 
 src_install() {
 	cros-kernel2_src_install
-#	make bcm2709-rpi-2-b.dtb
-
-        "${FILESDIR}/mkknlimg" \
+	"${D}/../work/raspberrypi-kernel/scripts/mkknlimg" \
                 "$(cros-workon_get_build_dir)/arch/arm/boot/zImage" \
-                "${T}/dtImage"
+                "${T}/kernel.img"
 
-        insinto /boot
-        doins "${FILESDIR}"/{cmdline,config}.txt
-        doins "${T}/dtImage"
-	doins "${FILESDIR}/bcm2709-rpi-2-b.dtb"
+	insinto /firmware/rpi
+	doins "${FILESDIR}"/{cmdline,config}.txt
+	doins "${T}/kernel.img"
+	doins "$(cros-workon_get_build_dir)/arch/arm/boot/dts/bcm2709-rpi-2-b.dtb"
+	doins -r "$(cros-workon_get_build_dir)/arch/arm/boot/dts/overlays"
 }
