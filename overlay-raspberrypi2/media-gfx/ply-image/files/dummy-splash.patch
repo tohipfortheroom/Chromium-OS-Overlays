@@ -1,29 +1,37 @@
 diff --git a/src/ply-image.c b/src/ply-image.c
-index 9261136..373ba1a 100755
+index 9261136..c61559b 100755
 --- a/src/ply-image.c
 +++ b/src/ply-image.c
-@@ -1,563 +1,724 @@
--/* ply-image.c - png file loader
-- *
-- * Copyright (C) 2006, 2007 Red Hat, Inc.
-- * Copyright (C) 2003 University of Southern California
-- *
-- * This program is free software; you can redistribute it and/or modify
-- * it under the terms of the GNU General Public License as published by
-- * the Free Software Foundation; either version 2, or (at your option)
-- * any later version.
-- *
-- * This program is distributed in the hope that it will be useful,
-- * but WITHOUT ANY WARRANTY; without even the implied warranty of
-- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-- * GNU General Public License for more details.
+@@ -288,10 +288,6 @@ static void ply_frame_buffer_show_image(
+ 
+   area.x += image_offset.x;
+   area.y += image_offset.y;
+-  if (debug) {
+-    fprintf(stderr, "displaying %lux%lu image at (%ld, %ld)\n",
+-                    area.width, area.height, area.x, area.y);
+-  }
+   fill_succeeded = ply_frame_buffer_fill(buffer, &area, data);
+ 
+   if (!fill_succeeded)
+@@ -450,6 +446,7 @@ static struct option command_options[] = {
+ };
+ 
+ 
++#if 0
+ int main(int argc, char **argv) {
+   int clear = 0;
+   bool location_assigned = false;
+@@ -561,3 +558,692 @@ int main(int argc, char **argv) {
+   process_images(buffer, argc - optind, argv + optind);
+   return EXIT_SUCCESS;
+ }
++#endif
++
++
++
 +/*
 + * modeset - DRM Modesetting Example
-  *
-- * You should have received a copy of the GNU General Public License
-- * along with this program; if not, write to the Free Software
-- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-- * 02111-1307, USA.
++ *
 + * Written 2012 by David Herrmann <dh.herrmann@googlemail.com>
 + * Dedicated to the Public Domain.
 + */
@@ -34,42 +42,32 @@ index 9261136..373ba1a 100755
 + * API, we have to include xf86drm.h and xf86drmMode.h. Both are provided by
 + * libdrm which every major distribution ships by default. It has no other
 + * dependencies and is pretty small.
-  *
-- * Some implementation taken from the cairo library.
++ *
 + * Please ignore all forward-declarations of functions which are used later. I
 + * reordered the functions so you can read this document from top to bottom. If
 + * you reimplement it, you would probably reorder the functions to avoid all the
 + * nasty forward declarations.
-  *
-- * Shamelessly taken and unmercifully hacked for temporary use
-- * in Chrome OS.
++ *
 + * For easier reading, we ignore all memory-allocation errors of malloc() and
 + * friends here. However, we try to correctly handle all other kinds of errors
 + * that may occur.
-  *
-- * Written by: Charlie Brej <cbrej@cs.man.ac.uk>
-- *             Kristian Høgsberg <krh@redhat.com>
-- *             Ray Strode <rstrode@redhat.com>
-- *             Carl D. Worth <cworth@cworth.org>
++ *
 + * All functions and global variables are prefixed with "modeset_*" in this
 + * file. So it should be clear whether a function is a local helper or if it is
 + * provided by some external library.
-  */
- 
--#include <assert.h>
++ */
++
 +#define _GNU_SOURCE
- #include <errno.h>
--#include <getopt.h>
--#include <inttypes.h>
++#include <errno.h>
 +#include <fcntl.h>
- #include <stdbool.h>
- #include <stdint.h>
- #include <stdio.h>
- #include <stdlib.h>
- #include <string.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
 +#include <sys/mman.h>
- #include <time.h>
- #include <unistd.h>
++#include <time.h>
++#include <unistd.h>
 +#include <xf86drm.h>
 +#include <xf86drmMode.h>
 +
@@ -83,95 +81,7 @@ index 9261136..373ba1a 100755
 +static int modeset_prepare(int fd);
 +static void modeset_draw(void);
 +static void modeset_cleanup(int fd);
- 
--// <png.h> depends on <math.h> but doesn't include it.  Boo!
--//
--// Also, <png.h> includes <setjmp.h> and is designed to break if we
--// re-include it.  Boo!
--#include <math.h>
--#include <png.h>
--
--#include "ply-frame-buffer.h"
--#include "ply-gamma.h"
--#include "ply-monitor.h"
--#include "ply-utils.h"
--
--#define MS_PER_SEC 1000LL
--#define NS_PER_SEC (1000LL * 1000LL * 1000LL)
--#define NS_PER_MS  (NS_PER_SEC / MS_PER_SEC)
--
--/* Default framerate for animations. */
--#define DEFAULT_FRAMES_PER_SEC 20
--
--typedef union {
--  uint32_t *as_pixels;
--  png_byte *as_png_bytes;
--  char *address;
--} ply_image_layout_t;
--
--typedef struct {
--  char  *filename;
--  FILE  *fp;
--
--  ply_image_layout_t layout;
--  size_t size;
--
--  png_uint_32 width;
--  png_uint_32 height;
--} ply_image_t;
--
--
--/* Returns the current CLOCK_MONOTONIC time in milliseconds. */
--static int64_t get_monotonic_time_ms() {
--  struct timespec spec;
--  assert(clock_gettime(CLOCK_MONOTONIC, &spec) == 0);
--  return MS_PER_SEC * spec.tv_sec + spec.tv_nsec / NS_PER_MS;
--}
--
--static bool ply_image_open_file(ply_image_t *image) {
--  assert(image != NULL);
--
--  image->fp = fopen(image->filename, "r");
--
--  return image->fp != NULL;
--}
--
--static void ply_image_close_file(ply_image_t *image) {
--  assert(image != NULL);
--
--  if (image->fp == NULL)
--    return;
--  fclose(image->fp);
--  image->fp = NULL;
--}
--
--static ply_image_t *ply_image_new(const char *filename) {
--  ply_image_t *image;
--
--  assert(filename != NULL);
--
--  image = calloc(1, sizeof(*image));
--
--  image->filename = strdup(filename);
--  image->fp = NULL;
--  image->layout.address = NULL;
--  image->size = -1;
--  image->width = -1;
--  image->height = -1;
--
--  return image;
--}
--
--static void ply_image_free(ply_image_t *image) {
--  if (image == NULL)
--    return;
--
--  assert(image->filename != NULL);
--
--  if (image->layout.address != NULL) {
--    free(image->layout.address);
--    image->layout.address = NULL;
--  }
++
 +/*
 + * When the linux kernel detects a graphics-card on your machine, it loads the
 + * correct device driver (located in kernel-tree at ./drivers/gpu/drm/<xy>) and
@@ -196,9 +106,7 @@ index 9261136..373ba1a 100755
 + * buffers without any driver-dependent code. As we want to avoid any radeon,
 + * nvidia, intel, etc. specific code, we depend on DUMB_BUFFERs here.
 + */
- 
--  free(image->filename);
--  free(image);
++
 +static int modeset_open(int *out, const char *node)
 +{
 +	int fd, ret;
@@ -221,11 +129,9 @@ index 9261136..373ba1a 100755
 +
 +	*out = fd;
 +	return 0;
- }
- 
- /*
-- * The following function courtesy of Intel Moblin's
-- * plymouth-lite port.
++}
++
++/*
 + * As a next step we need to find our available display devices. libdrm provides
 + * a drmModeRes structure that contains all the needed information. We can
 + * retrieve it via drmModeGetResources(fd) and free it via
@@ -268,105 +174,8 @@ index 9261136..373ba1a 100755
 + *  - @saved_crtc: the configuration of the crtc before we changed it. We use it
 + *                 so we can restore the same mode when we exit.
 + * }
-  */
--static void transform_to_rgb32(png_struct   *png,
--                               png_row_info *row_info,
--                               png_byte     *data) {
--  unsigned int i;
--
--  for (i = 0; i < row_info->rowbytes; i += 4) {
--    uint8_t  red, green, blue, alpha;
--    uint32_t pixel_value;
--
--    red = data[i + 0];
--    green = data[i + 1];
--    blue = data[i + 2];
--    alpha = data[i + 3];
--    pixel_value = (alpha << 24) | (red << 16) | (green << 8) | (blue << 0);
--    memcpy(data + i, &pixel_value, sizeof(pixel_value));
--  }
--}
--
--static bool ply_image_load(ply_image_t *image) {
--  png_struct *png;
--  png_info *info;
--  png_uint_32 width, height, bytes_per_row, row;
--  int bits_per_pixel, color_type, interlace_method;
--  png_byte **rows;
--
--  assert(image != NULL);
--
--  if (!ply_image_open_file(image))
--    return false;
--
--  png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
--  assert(png != NULL);
--
--  info = png_create_info_struct(png);
--  assert(info != NULL);
--
--  png_init_io(png, image->fp);
--
--  if (setjmp(png_jmpbuf(png)) != 0) {
--    ply_image_close_file(image);
--    return false;
--  }
--
--  png_read_info(png, info);
--  png_get_IHDR(png, info,
--               &width, &height, &bits_per_pixel,
--               &color_type, &interlace_method, NULL, NULL);
--  bytes_per_row = 4 * width;
--
--  if (color_type == PNG_COLOR_TYPE_PALETTE)
--    png_set_palette_to_rgb(png);
--
--  if ((color_type == PNG_COLOR_TYPE_GRAY) && (bits_per_pixel < 8))
--    png_set_gray_1_2_4_to_8(png);
--
--  if (png_get_valid(png, info, PNG_INFO_tRNS))
--    png_set_tRNS_to_alpha(png);
--
--  if (bits_per_pixel == 16)
--    png_set_strip_16(png);
--
--  if (bits_per_pixel < 8)
--    png_set_packing(png);
--
--  if ((color_type == PNG_COLOR_TYPE_GRAY) ||
--      (color_type == PNG_COLOR_TYPE_GRAY_ALPHA))
--    png_set_gray_to_rgb(png);
--
--  if (interlace_method != PNG_INTERLACE_NONE)
--    png_set_interlace_handling(png);
--
--  png_set_filler(png, 0xff, PNG_FILLER_AFTER);
- 
--  png_set_read_user_transform_fn(png, transform_to_rgb32);
--
--  png_read_update_info(png, info);
--
--  rows = malloc(height * sizeof(*rows));
--  image->layout.address = malloc(height * bytes_per_row);
--
--  for (row = 0; row < height; row++)
--    rows[row] = &image->layout.as_png_bytes[row * bytes_per_row];
--
--  png_read_image(png, rows);
--
--  free(rows);
--  png_read_end(png, info);
--  ply_image_close_file(image);
--  png_destroy_read_struct(&png, &info, NULL);
--
--  image->width = width;
--  image->height = height;
--
--  return true;
--}
--
--static const uint32_t *ply_image_get_data(const ply_image_t *image) {
--  assert(image != NULL);
++ */
++
 +struct modeset_dev {
 +	struct modeset_dev *next;
 +
@@ -383,13 +192,9 @@ index 9261136..373ba1a 100755
 +	uint32_t crtc;
 +	drmModeCrtc *saved_crtc;
 +};
- 
--  return image->layout.as_pixels;
--}
++
 +static struct modeset_dev *modeset_list = NULL;
- 
--static long ply_image_get_width(const ply_image_t *image) {
--  assert(image != NULL);
++
 +/*
 + * So as next step we need to actually prepare all connectors that we find. We
 + * do this in this little helper function:
@@ -408,8 +213,7 @@ index 9261136..373ba1a 100755
 + * Our helper modeset_setup_dev() returns -ENOENT if the connector is currently
 + * unused and no monitor is plugged in. So we can ignore this connector.
 + */
- 
--  return image->width;
++
 +static int modeset_prepare(int fd)
 +{
 +	drmModeRes *res;
@@ -463,10 +267,8 @@ index 9261136..373ba1a 100755
 +	/* free resources again */
 +	drmModeFreeResources(res);
 +	return 0;
- }
- 
--static long ply_image_get_height(const ply_image_t *image) {
--  assert(image != NULL);
++}
++
 +/*
 + * Now we dig deeper into setting up a single connector. As described earlier,
 + * we need to check several things first:
@@ -495,8 +297,7 @@ index 9261136..373ba1a 100755
 + *     render our graphics and then the CRTC can scan-out this data from the
 + *     framebuffer onto the monitor.
 + */
- 
--  return image->height;
++
 +static int modeset_setup_dev(int fd, drmModeRes *res, drmModeConnector *conn,
 +			     struct modeset_dev *dev)
 +{
@@ -540,17 +341,8 @@ index 9261136..373ba1a 100755
 +	}
 +
 +	return 0;
- }
- 
--static ply_image_t *ply_image_from_file(const char *path) {
--  ply_image_t *image = ply_image_new(path);
--
--  if (!ply_image_load(image)) {
--    perror(path);
--    exit(errno);
--  }
--  return image;
--}
++}
++
 +/*
 + * modeset_find_crtc(fd, res, conn, dev): This small helper tries to find a
 + * suitable CRTC for the given connector. We have actually have to introduce one
@@ -572,41 +364,7 @@ index 9261136..373ba1a 100755
 + * of previously setup devices and check that this CRTC wasn't used before.
 + * Otherwise, we continue with the next CRTC/Encoder combination.
 + */
- 
--static int debug = 0;
--static bool center_image = true;
--static ply_frame_buffer_area_t image_location, image_offset;
--static uint32_t clear_color;
--
--static void ply_frame_buffer_show_image(
--    ply_frame_buffer_t *buffer, const ply_image_t *image) {
--  const uint32_t *data;
--  ply_frame_buffer_area_t area, buffer_area;
--  bool fill_succeeded;
--
--  area.width = ply_image_get_width(image);
--  area.height = ply_image_get_height(image);
--  data = ply_image_get_data(image);
--
--  if (center_image) {
--    ply_frame_buffer_get_size(buffer, &buffer_area);
--    area.x = (long) (buffer_area.visible_width - area.width) / 2;
--    area.y = (long) (buffer_area.visible_height - area.height) / 2;
--  } else {
--    area.x = image_location.x;
--    area.y = image_location.y;
--  }
--
--  area.x += image_offset.x;
--  area.y += image_offset.y;
--  if (debug) {
--    fprintf(stderr, "displaying %lux%lu image at (%ld, %ld)\n",
--                    area.width, area.height, area.x, area.y);
--  }
--  fill_succeeded = ply_frame_buffer_fill(buffer, &area, data);
--
--  if (!fill_succeeded)
--    fprintf(stderr, "image was not displayed\n");
++
 +static int modeset_find_crtc(int fd, drmModeRes *res, drmModeConnector *conn,
 +			     struct modeset_dev *dev)
 +{
@@ -682,8 +440,8 @@ index 9261136..373ba1a 100755
 +	fprintf(stderr, "cannot find suitable CRTC for connector %u\n",
 +		conn->connector_id);
 +	return -ENOENT;
- }
- 
++}
++
 +/*
 + * modeset_create_fb(fd, dev): After we have found a crtc+connector+mode
 + * combination, we need to actually create a suitable framebuffer that we can
@@ -708,26 +466,7 @@ index 9261136..373ba1a 100755
 + * that we perform the actual mmap() call. So we can now access the framebuffer
 + * memory directly via the dev->map memory map.
 + */
- 
--static int usage(void) {
--  fprintf(stderr,
--          "usage: ply-image [OPTION]... [FILE]...\n"
--          "Copy one or more images to the framebuffer.\n"
--          "\n"
--          "Options:\n"
--          "  --clear=0xRRGGBB         hexadecimal framebuffer clear color\n"
--          "  --debug                  print debugging info to stderr\n"
--          "  --frame-interval=MSEC    time interval between images\n"
--          "  --gamma=FILE             file containing gamma ramps\n"
--          "  --help                   display this message\n"
--          "  --location=X,Y           image location relative to top left\n"
--          "                           corner of framebuffer\n"
--          "  --set-monitors           turn off all non-main monitors\n"
--          "  --offset=[+|-]X,[+|-]Y   image location as offset from center\n"
--          "                           of framebuffer\n"
--          "  --print-resolution       print space-separated framebuffer\n"
--          "                           width and height to stdout\n");
--  exit(EXIT_FAILURE);
++
 +static int modeset_create_fb(int fd, struct modeset_dev *dev)
 +{
 +	struct drm_mode_create_dumb creq;
@@ -793,8 +532,8 @@ index 9261136..373ba1a 100755
 +	dreq.handle = dev->handle;
 +	drmIoctl(fd, DRM_IOCTL_MODE_DESTROY_DUMB, &dreq);
 +	return ret;
- }
- 
++}
++
 +/*
 + * Finally! We have a connector with a suitable CRTC. We know which mode we want
 + * to use and we have a framebuffer of the correct size that we can write to.
@@ -829,26 +568,28 @@ index 9261136..373ba1a 100755
 + * If we don't do this, the screen will stay blank after we exit until another
 + * application performs modesetting itself.
 + */
- 
--static bool parse_color(const char *arg) {
--  char *endptr;
--
--  clear_color = strtol(arg, &endptr, 16);
--  if (endptr == arg || *endptr != '\0') {
--    return false;
--  }
--
--  return true;
++
 +int main(int argc, char **argv)
 +{
 +	int ret, fd;
 +	const char *card;
 +	struct modeset_dev *iter;
 +
++	for (;;) {
++		int c = getopt_long(argc, argv, "", command_options, NULL);
++		if (c == -1) {
++			break;
++		}
++		if (c == FLAG_PRINT_RESOLUTION) {
++			printf("1920 1080 32\n");
++			return 0;
++		}
++	}
++
 +	card = "/dev/dri/card0";
 +	ret = modeset_open(&fd, card);
 +	if (ret)
-+		goto out_return;
++		return 0; // -ENODEV
 +
 +	/* prepare all connectors and CRTCs */
 +	ret = modeset_prepare(fd);
@@ -865,137 +606,50 @@ index 9261136..373ba1a 100755
 +				iter->conn, errno);
 +	}
 +
-+	/* draw some colors for 5seconds */
 +	modeset_draw();
-+
-+	/* cleanup everything */
 +	modeset_cleanup(fd);
 +
 +	ret = 0;
 +
 +out_close:
 +	close(fd);
-+out_return:
-+	if (ret) {
-+		errno = -ret;
-+		fprintf(stderr, "modeset failed with error %d: %m\n", errno);
-+	} else {
-+		fprintf(stderr, "exiting\n");
-+	}
 +	return ret;
- }
- 
--static bool parse_xy(const char *arg, ply_frame_buffer_area_t *area) {
--  char *endptr;
--  long x, y;
--
--  x = strtol(arg, &endptr, 10);
--  if (endptr == arg || *endptr != ',') {
--    return false;
--  }
-+/*
-+ * A short helper function to compute a changing color value. No need to
-+ * understand it.
-+ */
- 
--  arg = endptr + 1;
--  y = strtol(arg, &endptr, 10);
--  if (endptr == arg || *endptr != '\0') {
--    return false;
--  }
-+static uint8_t next_color(bool *up, uint8_t cur, unsigned int mod)
-+{
-+	uint8_t next;
- 
--  area->x = x;
--  area->y = y;
-+	next = cur + (*up ? mod : -mod);
-+	if ((*up && next < cur) || (!*up && next > cur)) {
-+		*up = !*up;
-+		next = cur;
-+	}
- 
--  return true;
-+	return next;
- }
- 
--static bool parse_location(const char *arg) {
--  bool result = parse_xy(arg, &image_location);
--  if (result)
--    center_image = false;
--  return result;
--}
-+/*
-+ * modeset_draw(): This draws a solid color into all configured framebuffers.
-+ * Every 100ms the color changes to a slightly different color so we get some
-+ * kind of smoothly changing color-gradient.
-+ *
-+ * The color calculation can be ignored as it is pretty boring. So the
-+ * interesting stuff is iterating over "modeset_list" and then through all lines
-+ * and width. We then set each pixel individually to the current color.
-+ *
-+ * We do this 50 times as we sleep 100ms after each redraw round. This makes
-+ * 50*100ms = 5000ms = 5s so it takes about 5seconds to finish this loop.
-+ *
-+ * Please note that we draw directly into the framebuffer. This means that you
-+ * will see flickering as the monitor might refresh while we redraw the screen.
-+ * To avoid this you would need to use two framebuffers and a call to
-+ * drmModeSetCrtc() to switch between both buffers.
-+ * You can also use drmModePageFlip() to do a vsync'ed pageflip. But this is
-+ * beyond the scope of this document.
-+ */
- 
--static bool parse_offset(const char *arg) {
--  return parse_xy(arg, &image_offset);
++}
++
 +static void modeset_draw(void)
 +{
-+	uint8_t r, g, b;
-+	bool r_up, g_up, b_up;
 +	unsigned int i, j, k, off;
 +	struct modeset_dev *iter;
++	long imagewidth, imageheight, centeroff;
++	const uint32_t *data;
++	ply_image_t *image;
 +
-+	r = g = b = 0;
-+	r_up = g_up = b_up = true;
++	image = ply_image_from_file("/usr/share/chromeos-assets/images_100_percent/boot_splash_frame18.png");
++	imagewidth = ply_image_get_width(image);
++	imageheight = ply_image_get_height(image);
++	data = ply_image_get_data(image);
 +
-+	for (i = 0; i < 80; ++i) {
-+		r = next_color(&r_up, r, 12);
-+		g = next_color(&g_up, g, 8);
-+		b = next_color(&b_up, b, 5);
++	iter = modeset_list;
++	centeroff = (iter->width - imagewidth) * 2;
++	centeroff += iter->stride * ((iter->height - imageheight) / 2);
 +
-+		for (iter = modeset_list; iter; iter = iter->next) {
-+			for (j = 0; j < iter->height; ++j) {
-+				for (k = 0; k < iter->width; ++k) {
-+					off = iter->stride * j + k * 4;
-+					*(uint32_t*)&iter->map[off] =
-+						     (r << 16) | (g << 8) | b;
-+				}
-+			}
++	for (i = j = 0; j < imageheight; ++j) {
++		for (k = 0; k < imagewidth; ++k) {
++			off = iter->stride * j + centeroff + (k * 4);
++			*(uint32_t*)&iter->map[off] = data[i++];
 +		}
-+
-+		usleep(100000);
 +	}
- }
- 
++	for (i = 0; i < 80; i ++ )
++		usleep(100000);
++}
++
 +/*
 + * modeset_cleanup(fd): This cleans up all the devices we created during
 + * modeset_prepare(). It resets the CRTCs to their saved states and deallocates
 + * all memory.
 + * It should be pretty obvious how all of this works.
 + */
- 
--/* Frame rate as milliseconds per frame */
--static int64_t frame_interval_ms = MS_PER_SEC / DEFAULT_FRAMES_PER_SEC;
--
--static bool set_frame_interval(const char *arg) {
--  char *endptr;
--
--  long interval = strtol(arg, &endptr, 10);
--  if (endptr == arg || *endptr != '\0') {
--    return false;
--  }
--
--  frame_interval_ms = interval;
--  return true;
++
 +static void modeset_cleanup(int fd)
 +{
 +	struct modeset_dev *iter;
@@ -1031,13 +685,9 @@ index 9261136..373ba1a 100755
 +		/* free allocated memory */
 +		free(iter);
 +	}
- }
- 
--
- /*
-- * Animate the series of images named on the command line.  An attempt is made
-- * to let frame_interval_ms elapse between frames being displayed onscreen,
-- * although longer delays can occur.
++}
++
++/*
 + * I hope this was a short but easy overview of the DRM modesetting API. The DRM
 + * API offers much more capabilities including:
 + *  - double-buffering or tripple-buffering (or whatever you want)
@@ -1063,179 +713,4 @@ index 9261136..373ba1a 100755
 + *
 + *  - Hosted on http://github.com/dvdhrm/docs
 + *  - Written by David Herrmann <dh.herrmann@googlemail.com>
-  */
--static void process_images(
--    ply_frame_buffer_t *buffer, int argc, char *argv[]) {
--  int64_t last_show_ms = -1;
--
--  for (; argc > 0; --argc, ++argv) {
--    int64_t now_ms = -1;
--    ply_image_t* image = NULL;
--
--    if (debug) {
--      fprintf(stderr, "loading %s at %" PRId64 "\n", argv[0],
--              get_monotonic_time_ms());
--    }
--    image = ply_image_from_file(argv[0]);
--
--    now_ms = get_monotonic_time_ms();
--    if (last_show_ms > 0) {
--      int64_t sleep_ms = frame_interval_ms - (now_ms - last_show_ms);
--      if (sleep_ms > 0) {
--        struct timespec sleep_spec;
--        if (debug) {
--          fprintf(stderr, "sleeping %" PRId64 " ms at %" PRId64 "\n",
--                  sleep_ms, now_ms);
--        }
--        sleep_spec.tv_sec = sleep_ms / MS_PER_SEC;
--        sleep_spec.tv_nsec = (sleep_ms % MS_PER_SEC) * NS_PER_MS;
--        nanosleep(&sleep_spec, NULL);
--      }
--    }
--
--    now_ms = get_monotonic_time_ms();
--    if (debug) {
--      fprintf(stderr, "showing %s at %" PRId64 "\n", argv[0], now_ms);
--    }
--    ply_frame_buffer_show_image(buffer, image);
--    ply_image_free(image);
--    last_show_ms = now_ms;
--  }
--}
--
--
--#define FLAG_CLEAR             'c'
--#define FLAG_DEBUG             'D'
--#define FLAG_FRAME             'f'
--#define FLAG_GAMMA             'g'
--#define FLAG_HELP              'h'
--#define FLAG_LOCATION          'l'
--#define FLAG_SET_MONITORS      'm'
--#define FLAG_OFFSET            'o'
--#define FLAG_PRINT_RESOLUTION  'p'
--
--static struct option command_options[] = {
--  { "clear", required_argument, NULL, FLAG_CLEAR },
--  { "debug", no_argument, NULL, FLAG_DEBUG },
--  { "frame-interval", required_argument, NULL, FLAG_FRAME },
--  { "gamma", required_argument, NULL, FLAG_GAMMA },
--  { "help", no_argument, NULL, FLAG_HELP },
--  { "location", required_argument, NULL, FLAG_LOCATION },
--  { "set-monitors", no_argument, NULL, FLAG_SET_MONITORS },
--  { "offset", required_argument, NULL, FLAG_OFFSET },
--  { "print-resolution", no_argument, NULL, FLAG_PRINT_RESOLUTION },
--  { NULL, 0, NULL, 0 },
--};
--
--
--int main(int argc, char **argv) {
--  int clear = 0;
--  bool location_assigned = false;
--  bool offset_assigned = false;
--  bool print_resolution = false;
--  ply_frame_buffer_t *buffer;
--
--  /*
--   * TODO(jrbarnette): The command line parsing here and throughout
--   * the code is a bit rudimentary, especially w.r.t. error
--   * checking.  This command is only invoked in a handful of places
--   * in Chromium OS; outside of those cases, you should be grateful
--   * any time the error message isn't
--   *   Segmentation fault (core dumped)
--   * :-)
--   */
--  for (;;) {
--    int c = getopt_long(argc, argv, "", command_options, NULL);
--    if (c == -1) {
--      break;
--    }
--
--    if (c == FLAG_HELP) {
--      usage();
--    }
--
--    if (c == FLAG_DEBUG) {
--      debug = 1;
--      continue;
--    }
--
--    if (c == FLAG_CLEAR) {
--      clear = 1;
--      if (!parse_color(optarg)) {
--        usage();
--      }
--      continue;
--    }
--
--    if (c == FLAG_FRAME) {
--      if (!set_frame_interval(optarg)) {
--        usage();
--      }
--      continue;
--    }
--
--    if (c == FLAG_GAMMA) {
--      // Not all platforms necessarily have a gamma ramp file, so we
--      // ignore errors from this call.
--      (void) ply_gamma_set(optarg);
--      continue;
--    }
--
--    if (c == FLAG_LOCATION) {
--      if (!parse_location(optarg)) {
--        usage();
--      }
--      location_assigned = true;
--      continue;
--    }
--
--    if (c == FLAG_SET_MONITORS) {
--      ply_monitor_set_monitors = true;
--      continue;
--    }
--
--    if (c == FLAG_OFFSET) {
--      if (!parse_offset(optarg)) {
--        usage();
--      }
--      offset_assigned = true;
--      continue;
--    }
--
--    if (c == FLAG_PRINT_RESOLUTION) {
--      print_resolution = true;
--      continue;
--    }
--  }
--
--  if (location_assigned && offset_assigned) {
--    fprintf(stderr,
--            "--location and --offset should not be assigned at same time.\n");
--    usage();
--  }
--
--  buffer = ply_frame_buffer_new(NULL);
--  if (!ply_frame_buffer_open(buffer)) {
--    perror("could not open framebuffer");
--    return errno;
--  }
--
--  ply_frame_buffer_area_t fb_area;
--  ply_frame_buffer_get_size(buffer, &fb_area);
--
--  if (print_resolution) {
--    printf("%zu %zu\n", fb_area.visible_width, fb_area.visible_height);
--  }
--
--  if (debug) {
--    fprintf(stderr, "screen dimensions:  %lux%lu\n",
--            fb_area.width, fb_area.height);
--  }
--
--  if (clear) {
--    ply_frame_buffer_clear(buffer, clear_color);
--  }
--
--  process_images(buffer, argc - optind, argv + optind);
--  return EXIT_SUCCESS;
--}
++ */

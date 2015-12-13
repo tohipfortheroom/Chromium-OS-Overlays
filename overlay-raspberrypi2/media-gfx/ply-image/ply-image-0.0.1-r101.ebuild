@@ -23,7 +23,7 @@ DEPEND="media-libs/libpng
 RDEPEND="${DEPEND}"
 
 src_prepare() {
-       epatch ${FILESDIR}/*.patch
+       epatch ${FILESDIR}/dummy-splash.patch
 }
 
 src_configure() {
