@@ -1,0 +1,14 @@
+hdmi_drive=2
+#arm_freq=1000
+#core_freq=500
+#sdram_freq=500
+#over_voltage=2
+disable_overscan=1
+gpu_mem=512
+cma_lwm=16
+cma_hwm=32
+cma_offline_start=16
+dtparam=audio=on
+dtoverlay=vc4-kms-v3d
+mask_gpu_interrupt0=0x400   # KMS/DRM
+avoid_warnings=2            # KMS/DRM

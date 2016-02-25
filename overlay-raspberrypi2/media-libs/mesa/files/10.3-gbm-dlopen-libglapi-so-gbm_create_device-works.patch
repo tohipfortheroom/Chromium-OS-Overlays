@@ -1,0 +1,36 @@
+From c981ba115efa3f2777e1234f5562d4650fb2e4be Mon Sep 17 00:00:00 2001
+From: Frank Henigman <fjhenigman@chromium.org>
+Date: Thu, 6 Nov 2014 15:17:46 -0500
+Subject: [PATCH 18/27] gbm: dlopen libglapi so gbm_create_device works
+
+Dri driver libs are not linked to pull in libglapi so gbm_create_device()
+fails when it tries to dlopen them (unless the application is linked
+with something that does pull in libglapi, like libGL).
+Until dri drivers can be fixed properly, dlopen libglapi before trying
+to dlopen them.
+https://bugs.freedesktop.org/show_bug.cgi?id=57702
+
+Signed-off-by: Frank Henigman <fjhenigman@google.com>
+---
+ src/gbm/backends/dri/gbm_dri.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/gbm/backends/dri/gbm_dri.c b/src/gbm/backends/dri/gbm_dri.c
+index c513672..3bbd092 100644
+--- a/src/gbm/backends/dri/gbm_dri.c
++++ b/src/gbm/backends/dri/gbm_dri.c
+@@ -311,6 +311,11 @@ dri_open_driver(struct gbm_dri_device *dri)
+    if (search_paths == NULL)
+       search_paths = DEFAULT_DRIVER_DIR;
+ 
++   /* Temporarily work around dri driver libs that need symbols in libglapi
++    * but don't automatically link it in.
++    */
++   dlopen("libglapi.so.0", RTLD_LAZY | RTLD_GLOBAL);
++
+    dri->driver = NULL;
+    end = search_paths + strlen(search_paths);
+    for (p = search_paths; p < end && dri->driver == NULL; p = next + 1) {
+-- 
+2.3.1
+

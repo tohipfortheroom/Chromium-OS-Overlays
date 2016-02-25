@@ -1,0 +1,40 @@
+From bce0730b16ac40489e1ca636dfb1aeeb6ac3ec3c Mon Sep 17 00:00:00 2001
+From: Haixia Shi <hshi@chromium.org>
+Date: Tue, 27 Jan 2015 14:23:08 -0800
+Subject: [PATCH 24/27] CHROMIUM: egl/dri2: platform_drm should also try render
+ node first.
+
+BUG=chromium:446653
+TEST=build chrome with use_mesa_platform_null=1 and mesa with
+platform_gbm and verify that chrome still works
+
+Change-Id: I7d845a7b993f59bfd0595ddc3d18d5091bb74ec5
+---
+ src/egl/drivers/dri2/platform_drm.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/egl/drivers/dri2/platform_drm.c b/src/egl/drivers/dri2/platform_drm.c
+index 486b003..6967546 100644
+--- a/src/egl/drivers/dri2/platform_drm.c
++++ b/src/egl/drivers/dri2/platform_drm.c
+@@ -590,6 +590,8 @@ static struct dri2_egl_display_vtbl dri2_drm_display_vtbl = {
+    .get_sync_values = dri2_fallback_get_sync_values,
+ };
+ 
++#define DRM_RENDER_DEV_NAME "%s/renderD%d"
++
+ EGLBoolean
+ dri2_initialize_drm(_EGLDriver *drv, _EGLDisplay *disp)
+ {
+@@ -609,7 +611,7 @@ dri2_initialize_drm(_EGLDriver *drv, _EGLDisplay *disp)
+    gbm = disp->PlatformDisplay;
+    if (gbm == NULL) {
+       char buf[64];
+-      int n = snprintf(buf, sizeof(buf), DRM_DEV_NAME, DRM_DIR_NAME, 0);
++      int n = snprintf(buf, sizeof(buf), DRM_RENDER_DEV_NAME, DRM_DIR_NAME, 128);
+       if (n != -1 && n < sizeof(buf))
+          fd = open(buf, O_RDWR);
+       if (fd < 0)
+-- 
+2.3.1
+

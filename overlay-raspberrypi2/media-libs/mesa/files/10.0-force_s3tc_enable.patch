@@ -1,0 +1,26 @@
+From 47ad2c08f224de0deb8a09edfc4e07352d77bcbf Mon Sep 17 00:00:00 2001
+From: James Ausmus <james.ausmus@intel.com>
+Date: Mon, 4 May 2015 15:02:07 -0700
+Subject: [PATCH 05/27] CHROMIUM: 10.0-force_s3tc_enable.patch
+
+Change-Id: I136b23470feede0b396511f4ca6faf8093391581
+Signed-off-by: James Ausmus <james.ausmus@intel.com>
+---
+ src/gallium/auxiliary/util/u_format_s3tc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/gallium/auxiliary/util/u_format_s3tc.c b/src/gallium/auxiliary/util/u_format_s3tc.c
+index 7e05989..3e4152e 100644
+--- a/src/gallium/auxiliary/util/u_format_s3tc.c
++++ b/src/gallium/auxiliary/util/u_format_s3tc.c
+@@ -123,6 +123,7 @@ util_format_s3tc_init(void)
+    if (!library) {
+       debug_printf("couldn't open " DXTN_LIBNAME ", software DXTn "
+                    "compression/decompression unavailable\n");
++      util_format_s3tc_enabled = TRUE;
+       return;
+    }
+ 
+-- 
+2.3.1
+

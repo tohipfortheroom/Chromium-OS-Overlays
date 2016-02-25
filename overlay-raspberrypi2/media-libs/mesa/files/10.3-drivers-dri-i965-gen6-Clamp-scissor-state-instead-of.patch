@@ -1,0 +1,65 @@
+From 188310adf977454c9cce48464441840ac3022272 Mon Sep 17 00:00:00 2001
+From: Corbin Simpson <simpsoco@chromium.org>
+Date: Thu, 28 Aug 2014 14:48:31 -0700
+Subject: [PATCH 17/27] drivers/dri/i965/gen6: Clamp scissor state instead of
+ truncating.
+
+Replaces one undefined behavior with another, slightly more friendly,
+undefined behavior.
+
+BUG=chromium:360217
+TEST=Watched some Youtube on Link; can't reproduce original bug as reported.
+
+Change-Id: I7ae0e053ffb6c7a57cb7b3232d27700b6703b3ff
+Signed-off-by: Corbin Simpson <simpsoco@chromium.org>
+---
+ src/mesa/drivers/dri/i965/gen6_scissor_state.c | 23 +++++++++++++++--------
+ 1 file changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/gen6_scissor_state.c b/src/mesa/drivers/dri/i965/gen6_scissor_state.c
+index 0111f15..244678c 100644
+--- a/src/mesa/drivers/dri/i965/gen6_scissor_state.c
++++ b/src/mesa/drivers/dri/i965/gen6_scissor_state.c
+@@ -32,6 +32,13 @@
+ #include "main/fbobject.h"
+ #include "main/framebuffer.h"
+ 
++/* Clamp scissors to 16-bit unsigned values; otherwise, the compiler truncates
++ * them to fit inside the bitfields, which is often not what is desired.
++ * My reading of GL and GLES specs suggests that overly-large scissor values are
++ * not an erroring condition and that the actual behavior is undefined, so
++ * switching from truncation to clamping is probably not a problem. ~ C. */
++#define CLAMP_SCISSOR(X) CLAMP(X, 0x0000, 0xffff)
++
+ static void
+ gen6_upload_scissor_state(struct brw_context *brw)
+ {
+@@ -71,17 +78,17 @@ gen6_upload_scissor_state(struct brw_context *brw)
+          scissor[i].ymax = 0;
+       } else if (render_to_fbo) {
+          /* texmemory: Y=0=bottom */
+-         scissor[i].xmin = bbox[0];
+-         scissor[i].xmax = bbox[1] - 1;
+-         scissor[i].ymin = bbox[2];
+-         scissor[i].ymax = bbox[3] - 1;
++         scissor[i].xmin = CLAMP_SCISSOR(bbox[0]);
++         scissor[i].xmax = CLAMP_SCISSOR(bbox[1] - 1);
++         scissor[i].ymin = CLAMP_SCISSOR(bbox[2]);
++         scissor[i].ymax = CLAMP_SCISSOR(bbox[3] - 1);
+       }
+       else {
+          /* memory: Y=0=top */
+-         scissor[i].xmin = bbox[0];
+-         scissor[i].xmax = bbox[1] - 1;
+-         scissor[i].ymin = ctx->DrawBuffer->Height - bbox[3];
+-         scissor[i].ymax = ctx->DrawBuffer->Height - bbox[2] - 1;
++         scissor[i].xmin = CLAMP_SCISSOR(bbox[0]);
++         scissor[i].xmax = CLAMP_SCISSOR(bbox[1] - 1);
++         scissor[i].ymin = CLAMP_SCISSOR(ctx->DrawBuffer->Height - bbox[3]);
++         scissor[i].ymax = CLAMP_SCISSOR(ctx->DrawBuffer->Height - bbox[2] - 1);
+       }
+    }
+    BEGIN_BATCH(2);
+-- 
+2.3.1
+

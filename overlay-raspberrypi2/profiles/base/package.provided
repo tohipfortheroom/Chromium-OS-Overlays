@@ -1,0 +1,2 @@
+# Fails to compile under armv6 (and we don't need it anyway)
+dev-util/stressapptest-9999
