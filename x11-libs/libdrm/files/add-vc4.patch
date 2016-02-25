@@ -1,0 +1,755 @@
+diff --git a/Makefile.am b/Makefile.am
+index a7a0cca..3a178f8 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -78,6 +78,10 @@ if HAVE_TEGRA
+ TEGRA_SUBDIR = tegra
+ endif
+ 
++if HAVE_VC4
++VC4_SUBDIR = vc4
++endif
++
+ if BUILD_MANPAGES
+ if HAVE_MANPAGES_STYLESHEET
+ MAN_SUBDIR = man
+@@ -95,6 +99,7 @@ SUBDIRS = \
+ 	$(EXYNOS_SUBDIR) \
+ 	$(FREEDRENO_SUBDIR) \
+ 	$(TEGRA_SUBDIR) \
++	$(VC4_SUBDIR) \
+ 	tests \
+ 	$(MAN_SUBDIR)
+ 
+diff --git a/configure.ac b/configure.ac
+index cf10ef2..f02d6c9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -126,6 +126,11 @@ AC_ARG_ENABLE(tegra-experimental-api,
+ 	      [Enable support for Tegra's experimental API (default: disabled)]),
+ 	      [TEGRA=$enableval], [TEGRA=no])
+ 
++AC_ARG_ENABLE(vc4-experimental-api,
++	      AS_HELP_STRING([--enable-vc4-experimental-api]
++	      [Enable support for Broadcom's experimental API (default: disabled)]),
++	      [VC4=$enableval], [VC4=no])
++
+ AC_ARG_ENABLE(install-test-programs,
+ 		  AS_HELP_STRING([--enable-install-test-programs],
+ 		  [Install test programs (default: no)]),
+@@ -267,6 +272,9 @@ if test "x$drm_cv_atomic_primitives" = "xnone"; then
+ 
+ 	LIBDRM_ATOMICS_NOT_FOUND_MSG($TEGRA, tegra, NVIDIA Tegra, tegra-experimental-api)
+ 	TEGRA=no
++
++	LIBDRM_ATOMICS_NOT_FOUND_MSG($VC4, vc4, Broadcom Videocore, vc4-experimental-api)
++	VC4=no
+ else
+ 	if test "x$INTEL" = xauto; then
+ 		case $host_cpu in
+@@ -391,6 +399,11 @@ if test "x$TEGRA" = xyes; then
+ 	AC_DEFINE(HAVE_TEGRA, 1, [Have Tegra support])
+ fi
+ 
++AM_CONDITIONAL(HAVE_VC4, [test "x$VC4" = xyes])
++if test "x$VC4" = xyes; then
++	AC_DEFINE(HAVE_VC4, 1, [Have vc4 support])
++fi
++
+ AM_CONDITIONAL(HAVE_INSTALL_TESTS, [test "x$INSTALL_TESTS" = xyes])
+ if test "x$INSTALL_TESTS" = xyes; then
+ 	AC_DEFINE(HAVE_INSTALL_TESTS, 1, [Install test programs])
+@@ -496,6 +509,8 @@ AC_CONFIG_FILES([
+ 	freedreno/libdrm_freedreno.pc
+ 	tegra/Makefile
+ 	tegra/libdrm_tegra.pc
++	vc4/Makefile
++	vc4/libdrm_vc4.pc
+ 	tests/Makefile
+ 	tests/modeprint/Makefile
+ 	tests/modetest/Makefile
+@@ -524,4 +539,5 @@ echo "  OMAP API       $OMAP"
+ echo "  EXYNOS API     $EXYNOS"
+ echo "  Freedreno API  $FREEDRENO (kgsl: $FREEDRENO_KGSL)"
+ echo "  Tegra API      $TEGRA"
++echo "  VC4 API        $VC4"
+ echo ""
+diff --git a/include/drm/vc4_drm.h b/include/drm/vc4_drm.h
+new file mode 100644
+index 0000000..863ef8d
+--- /dev/null
++++ b/include/drm/vc4_drm.h
+@@ -0,0 +1,229 @@
++/*
++ * Copyright © 2014-2015 Broadcom
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
++ * IN THE SOFTWARE.
++ */
++
++#ifndef _UAPI_VC4_DRM_H_
++#define _UAPI_VC4_DRM_H_
++
++#include <drm.h>
++
++#define DRM_VC4_SUBMIT_CL                         0x00
++#define DRM_VC4_WAIT_SEQNO                        0x01
++#define DRM_VC4_WAIT_BO                           0x02
++#define DRM_VC4_CREATE_BO                         0x03
++#define DRM_VC4_MMAP_BO                           0x04
++#define DRM_VC4_CREATE_SHADER_BO                  0x05
++
++#define DRM_IOCTL_VC4_SUBMIT_CL           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_SUBMIT_CL, struct drm_vc4_submit_cl)
++#define DRM_IOCTL_VC4_WAIT_SEQNO          DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_SEQNO, struct drm_vc4_wait_seqno)
++#define DRM_IOCTL_VC4_WAIT_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_WAIT_BO, struct drm_vc4_wait_bo)
++#define DRM_IOCTL_VC4_CREATE_BO           DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_BO, struct drm_vc4_create_bo)
++#define DRM_IOCTL_VC4_MMAP_BO             DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_MMAP_BO, struct drm_vc4_mmap_bo)
++#define DRM_IOCTL_VC4_CREATE_SHADER_BO    DRM_IOWR( DRM_COMMAND_BASE + DRM_VC4_CREATE_SHADER_BO, struct drm_vc4_create_shader_bo)
++
++struct drm_vc4_submit_rcl_surface {
++	uint32_t hindex; /* Handle index, or ~0 if not present. */
++	uint32_t offset; /* Offset to start of buffer. */
++	/*
++         * Bits for either render config (color_ms_write) or load/store packet.
++	 */
++	uint16_t bits;
++	uint16_t pad;
++};
++
++/**
++ * struct drm_vc4_submit_cl - ioctl argument for submitting commands to the 3D
++ * engine.
++ *
++ * Drivers typically use GPU BOs to store batchbuffers / command lists and
++ * their associated state.  However, because the VC4 lacks an MMU, we have to
++ * do validation of memory accesses by the GPU commands.  If we were to store
++ * our commands in BOs, we'd need to do uncached readback from them to do the
++ * validation process, which is too expensive.  Instead, userspace accumulates
++ * commands and associated state in plain memory, then the kernel copies the
++ * data to its own address space, and then validates and stores it in a GPU
++ * BO.
++ */
++struct drm_vc4_submit_cl {
++	/* Pointer to the binner command list.
++	 *
++	 * This is the first set of commands executed, which runs the
++	 * coordinate shader to determine where primitives land on the screen,
++	 * then writes out the state updates and draw calls necessary per tile
++	 * to the tile allocation BO.
++	 */
++	uint64_t bin_cl;
++
++	/* Pointer to the shader records.
++	 *
++	 * Shader records are the structures read by the hardware that contain
++	 * pointers to uniforms, shaders, and vertex attributes.  The
++	 * reference to the shader record has enough information to determine
++	 * how many pointers are necessary (fixed number for shaders/uniforms,
++	 * and an attribute count), so those BO indices into bo_handles are
++	 * just stored as uint32_ts before each shader record passed in.
++	 */
++	uint64_t shader_rec;
++
++	/* Pointer to uniform data and texture handles for the textures
++	 * referenced by the shader.
++	 *
++	 * For each shader state record, there is a set of uniform data in the
++	 * order referenced by the record (FS, VS, then CS).  Each set of
++	 * uniform data has a uint32_t index into bo_handles per texture
++	 * sample operation, in the order the QPU_W_TMUn_S writes appear in
++	 * the program.  Following the texture BO handle indices is the actual
++	 * uniform data.
++	 *
++	 * The individual uniform state blocks don't have sizes passed in,
++	 * because the kernel has to determine the sizes anyway during shader
++	 * code validation.
++	 */
++	uint64_t uniforms;
++	uint64_t bo_handles;
++
++	/* Size in bytes of the binner command list. */
++	uint32_t bin_cl_size;
++	/* Size in bytes of the set of shader records. */
++	uint32_t shader_rec_size;
++	/* Number of shader records.
++	 *
++	 * This could just be computed from the contents of shader_records and
++	 * the address bits of references to them from the bin CL, but it
++	 * keeps the kernel from having to resize some allocations it makes.
++	 */
++	uint32_t shader_rec_count;
++	/* Size in bytes of the uniform state. */
++	uint32_t uniforms_size;
++
++	/* Number of BO handles passed in (size is that times 4). */
++	uint32_t bo_handle_count;
++
++	/* RCL setup: */
++	uint16_t width;
++	uint16_t height;
++	uint8_t min_x_tile;
++	uint8_t min_y_tile;
++	uint8_t max_x_tile;
++	uint8_t max_y_tile;
++	struct drm_vc4_submit_rcl_surface color_read;
++	struct drm_vc4_submit_rcl_surface color_ms_write;
++	struct drm_vc4_submit_rcl_surface zs_read;
++	struct drm_vc4_submit_rcl_surface zs_write;
++	uint32_t clear_color[2];
++	uint32_t clear_z;
++	uint8_t clear_s;
++
++	uint32_t pad:24;
++
++#define VC4_SUBMIT_CL_USE_CLEAR_COLOR			(1 << 0)
++	uint32_t flags;
++
++	/* Returned value of the seqno of this render job (for the
++	 * wait ioctl).
++	 */
++	uint64_t seqno;
++};
++
++/**
++ * struct drm_vc4_wait_seqno - ioctl argument for waiting for
++ * DRM_VC4_SUBMIT_CL completion using its returned seqno.
++ *
++ * timeout_ns is the timeout in nanoseconds, where "0" means "don't
++ * block, just return the status."
++ */
++struct drm_vc4_wait_seqno {
++	uint64_t seqno;
++	uint64_t timeout_ns;
++};
++
++/**
++ * struct drm_vc4_wait_bo - ioctl argument for waiting for
++ * completion of the last DRM_VC4_SUBMIT_CL on a BO.
++ *
++ * This is useful for cases where multiple processes might be
++ * rendering to a BO and you want to wait for all rendering to be
++ * completed.
++ */
++struct drm_vc4_wait_bo {
++	uint32_t handle;
++	uint32_t pad;
++	uint64_t timeout_ns;
++};
++
++/**
++ * struct drm_vc4_create_bo - ioctl argument for creating VC4 BOs.
++ *
++ * There are currently no values for the flags argument, but it may be
++ * used in a future extension.
++ */
++struct drm_vc4_create_bo {
++	uint32_t size;
++	uint32_t flags;
++	/** Returned GEM handle for the BO. */
++	uint32_t handle;
++	uint32_t pad;
++};
++
++/**
++ * struct drm_vc4_create_shader_bo - ioctl argument for creating VC4
++ * shader BOs.
++ *
++ * Since allowing a shader to be overwritten while it's also being
++ * executed from would allow privlege escalation, shaders must be
++ * created using this ioctl, and they can't be mmapped later.
++ */
++struct drm_vc4_create_shader_bo {
++	/* Size of the data argument. */
++	uint32_t size;
++	/* Flags, currently must be 0. */
++	uint32_t flags;
++
++	/* Pointer to the data. */
++	uint64_t data;
++
++	/** Returned GEM handle for the BO. */
++	uint32_t handle;
++	/* Pad, must be 0. */
++	uint32_t pad;
++};
++
++/**
++ * struct drm_vc4_mmap_bo - ioctl argument for mapping VC4 BOs.
++ *
++ * This doesn't actually perform an mmap.  Instead, it returns the
++ * offset you need to use in an mmap on the DRM device node.  This
++ * means that tools like valgrind end up knowing about the mapped
++ * memory.
++ *
++ * There are currently no values for the flags argument, but it may be
++ * used in a future extension.
++ */
++struct drm_vc4_mmap_bo {
++	/** Handle for the object being mapped. */
++	uint32_t handle;
++	uint32_t flags;
++	/** offset into the drm node to use for subsequent mmap call. */
++	uint64_t offset;
++};
++
++#endif /* _UAPI_VC4_DRM_H_ */
+diff --git a/vc4/Makefile.am b/vc4/Makefile.am
+new file mode 100644
+index 0000000..5dad38f
+--- /dev/null
++++ b/vc4/Makefile.am
+@@ -0,0 +1,24 @@
++AM_CPPFLAGS = \
++	-I$(top_srcdir) \
++	-I$(top_srcdir)/include/drm
++
++AM_CFLAGS = \
++	@PTHREADSTUBS_CFLAGS@ \
++	$(WARN_CFLAGS)
++
++libdrm_vc4_ladir = $(libdir)
++libdrm_vc4_la_LTLIBRARIES = libdrm_vc4.la
++libdrm_vc4_la_LDFLAGS = -version-number 0:0:0 -no-undefined
++libdrm_vc4_la_LIBADD = ../libdrm.la @PTHREADSTUBS_LIBS@
++
++libdrm_vc4_la_SOURCES = \
++	vc4.c
++
++libdrm_vc4includedir = ${includedir}/libdrm
++libdrm_vc4include_HEADERS = vc4.h
++
++pkgconfigdir = @pkgconfigdir@
++pkgconfig_DATA = libdrm_vc4.pc
++
++TESTS = ""
++EXTRA_DIST = $(TESTS)
+diff --git a/vc4/libdrm_vc4.pc.in b/vc4/libdrm_vc4.pc.in
+new file mode 100644
+index 0000000..e8d991b
+--- /dev/null
++++ b/vc4/libdrm_vc4.pc.in
+@@ -0,0 +1,11 @@
++prefix=@prefix@
++exec_prefix=@exec_prefix@
++libdir=@libdir@
++includedir=@includedir@
++
++Name: libdrm_vc4
++Description: Userspace interface to Videocore4 kernel DRM services
++Version: @PACKAGE_VERSION@
++Libs: -L${libdir} -ldrm_vc4
++Cflags: -I${includedir} -I${includedir}/libdrm
++Requires.private: libdrm
+diff --git a/vc4/vc4.c b/vc4/vc4.c
+new file mode 100644
+index 0000000..647b7fe
+--- /dev/null
++++ b/vc4/vc4.c
+@@ -0,0 +1,350 @@
++/*
++ * Copyright © 2012, 2013 Thierry Reding
++ * Copyright © 2013 Erik Faye-Lund
++ * Copyright © 2014 NVIDIA Corporation
++ *
++ * Copyright © 2014-2015 Broadcom
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
++ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
++ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++#ifdef HAVE_CONFIG_H
++#  include "config.h"
++#endif
++
++#include <errno.h>
++#include <fcntl.h>
++#include <string.h>
++#include <unistd.h>
++
++#include <sys/mman.h>
++#include <xf86drm.h>
++#include <vc4.h>
++#include <vc4_drm.h>
++
++/*
++ * Compare with http://cgit.freedesktop.org/mesa/mesa/tree/src/gallium/drivers/vc4/vc4_bufmgr.c
++ * TODO:
++ *	vc4_bo_flink(struct drm_vc4_bo *bo, uint32_t *name)
++ *	vc4_bo_alloc_shader(struct vc4_screen *screen, const void *data, uint32_t size)
++ *	vc4_bo_open_dmabuf(struct vc4_screen *screen, int fd, uint32_t winsys_stride)
++ *	vc4_bo_get_dmabuf(struct vc4_bo *bo)
++ *	vc4_wait_bo_ioctl(int fd, uint32_t handle, uint64_t timeout_ns)
++ */
++
++static void drm_vc4_bo_free(struct drm_vc4_bo *bo)
++{
++	struct drm_vc4 *drm = bo->drm;
++	struct drm_gem_close args;
++
++	if (bo->map)
++		munmap(bo->map, bo->size);
++
++	memset(&args, 0, sizeof(args));
++	args.handle = bo->handle;
++
++	drmIoctl(drm->fd, DRM_IOCTL_GEM_CLOSE, &args);
++
++	free(bo);
++}
++
++static int drm_vc4_wrap(struct drm_vc4 **drmp, int fd, bool close)
++{
++	struct drm_vc4 *drm;
++
++	if (fd < 0 || !drmp)
++		return -EINVAL;
++
++	drm = calloc(1, sizeof(*drm));
++	if (!drm)
++		return -ENOMEM;
++
++	drm->close = close;
++	drm->fd = fd;
++
++	*drmp = drm;
++
++	return 0;
++}
++
++int drm_vc4_new(struct drm_vc4 **drmp, int fd)
++{
++	bool supported = false;
++	drmVersionPtr version;
++
++	version = drmGetVersion(fd);
++	if (!version)
++		return -ENOMEM;
++
++	if (!strncmp(version->name, "vc4", version->name_len))
++		supported = true;
++
++	drmFreeVersion(version);
++
++	if (!supported)
++		return -ENOTSUP;
++
++	return drm_vc4_wrap(drmp, fd, false);
++}
++
++void drm_vc4_close(struct drm_vc4 *drm)
++{
++	if (!drm)
++		return;
++
++	if (drm->close)
++		close(drm->fd);
++
++	free(drm);
++}
++
++int drm_vc4_bo_new(struct drm_vc4_bo **bop, struct drm_vc4 *drm,
++		     uint32_t flags, uint32_t size)
++{
++	struct drm_vc4_create_bo args;
++	struct drm_vc4_bo *bo;
++	int err;
++
++	if (!drm || size == 0 || !bop)
++		return -EINVAL;
++
++	bo = calloc(1, sizeof(*bo));
++	if (!bo)
++		return -ENOMEM;
++
++	atomic_set(&bo->ref, 1);
++	bo->flags = flags;
++	bo->size = size;
++	bo->drm = drm;
++
++	memset(&args, 0, sizeof(args));
++	args.flags = flags;
++	args.size = size;
++
++	err = drmCommandWriteRead(drm->fd, DRM_VC4_CREATE_BO, &args,
++				  sizeof(args));
++	if (err < 0) {
++		err = -errno;
++		free(bo);
++		return err;
++	}
++
++	bo->handle = args.handle;
++
++	*bop = bo;
++
++	return 0;
++}
++
++int drm_vc4_bo_wrap(struct drm_vc4_bo **bop, struct drm_vc4 *drm,
++		      uint32_t handle, uint32_t flags, uint32_t size)
++{
++	struct drm_vc4_bo *bo;
++
++	if (!drm || !bop)
++		return -EINVAL;
++
++	bo = calloc(1, sizeof(*bo));
++	if (!bo)
++		return -ENOMEM;
++
++	atomic_set(&bo->ref, 1);
++	bo->handle = handle;
++	bo->flags = flags;
++	bo->size = size;
++	bo->drm = drm;
++
++	*bop = bo;
++
++	return 0;
++}
++
++struct drm_vc4_bo *drm_vc4_bo_ref(struct drm_vc4_bo *bo)
++{
++	if (bo)
++		atomic_inc(&bo->ref);
++
++	return bo;
++}
++
++void drm_vc4_bo_unref(struct drm_vc4_bo *bo)
++{
++	if (bo && atomic_dec_and_test(&bo->ref))
++		drm_vc4_bo_free(bo);
++}
++
++int drm_vc4_bo_get_handle(struct drm_vc4_bo *bo, uint32_t *handle)
++{
++	if (!bo || !handle)
++		return -EINVAL;
++
++	*handle = bo->handle;
++
++	return 0;
++}
++
++/*
++ * Matches VC4 Mesa "vc4_bo_map_unsynchronized"
++ *	TODO: add "vc4_bo_wait"
++ */
++int drm_vc4_bo_map(struct drm_vc4_bo *bo, void **ptr)
++{
++	struct drm_vc4 *drm = bo->drm;
++
++	if (!bo->map) {
++		struct drm_vc4_mmap_bo args;
++		int err;
++
++		memset(&args, 0, sizeof(args));
++		args.handle = bo->handle;
++
++		err = drmCommandWriteRead(drm->fd, DRM_VC4_MMAP_BO, &args,
++					  sizeof(args));
++		if (err < 0)
++			return -errno;
++
++		// bool ok = vc4_bo_wait(bo, PIPE_TIMEOUT_INFINITE, "drm_vc4_bo_map");
++
++		bo->offset = args.offset;
++		bo->map = mmap(0, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
++			       drm->fd, bo->offset);
++		if (bo->map == MAP_FAILED) {
++			bo->map = NULL;
++			return -errno;
++		}
++	}
++
++	if (ptr)
++		*ptr = bo->map;
++
++	return 0;
++}
++
++int drm_vc4_bo_unmap(struct drm_vc4_bo *bo)
++{
++	if (!bo)
++		return -EINVAL;
++
++	if (!bo->map)
++		return 0;
++
++	if (munmap(bo->map, bo->size))
++		return -errno;
++
++	bo->map = NULL;
++
++	return 0;
++}
++
++int drm_vc4_bo_get_flags(struct drm_vc4_bo *bo, uint32_t *flags)
++{
++#if 0
++	struct drm_vc4_gem_get_flags args;
++	struct drm_vc4 *drm = bo->drm;
++	int err;
++
++	if (!bo)
++		return -EINVAL;
++
++	memset(&args, 0, sizeof(args));
++	args.handle = bo->handle;
++
++	err = drmCommandWriteRead(drm->fd, DRM_VC4_GEM_GET_FLAGS, &args,
++				  sizeof(args));
++	if (err < 0)
++		return -errno;
++
++	if (flags)
++		*flags = args.flags;
++#endif
++	return 0;
++}
++
++int drm_vc4_bo_set_flags(struct drm_vc4_bo *bo, uint32_t flags)
++{
++#if 0
++	struct drm_vc4_gem_get_flags args;
++	struct drm_vc4 *drm = bo->drm;
++	int err;
++
++	if (!bo)
++		return -EINVAL;
++
++	memset(&args, 0, sizeof(args));
++	args.handle = bo->handle;
++	args.flags = flags;
++
++	err = drmCommandWriteRead(drm->fd, DRM_VC4_GEM_SET_FLAGS, &args,
++				  sizeof(args));
++	if (err < 0)
++		return -errno;
++#endif
++	return 0;
++}
++
++#if 0
++int drm_vc4_bo_get_tiling(struct drm_vc4_bo *bo,
++			    struct drm_vc4_bo_tiling *tiling)
++{
++	struct drm_vc4_gem_get_tiling args;
++	struct drm_vc4 *drm = bo->drm;
++	int err;
++
++	if (!bo)
++		return -EINVAL;
++
++	memset(&args, 0, sizeof(args));
++	args.handle = bo->handle;
++
++	err = drmCommandWriteRead(drm->fd, DRM_VC4_GEM_GET_TILING, &args,
++				  sizeof(args));
++	if (err < 0)
++		return -errno;
++
++	if (tiling) {
++		tiling->mode = args.mode;
++		tiling->value = args.value;
++	}
++
++	return 0;
++}
++
++int drm_vc4_bo_set_tiling(struct drm_vc4_bo *bo,
++			    const struct drm_vc4_bo_tiling *tiling)
++{
++	struct drm_vc4_gem_set_tiling args;
++	struct drm_vc4 *drm = bo->drm;
++	int err;
++
++	if (!bo)
++		return -EINVAL;
++
++	memset(&args, 0, sizeof(args));
++	args.handle = bo->handle;
++	args.mode = tiling->mode;
++	args.value = tiling->value;
++
++	err = drmCommandWriteRead(drm->fd, DRM_VC4_GEM_SET_TILING, &args,
++				  sizeof(args));
++	if (err < 0)
++		return -errno;
++
++	return 0;
++}
++#endif
+diff --git a/vc4/vc4.h b/vc4/vc4.h
+new file mode 100644
+index 0000000..8d4233a
+--- /dev/null
++++ b/vc4/vc4.h
+@@ -0,0 +1,35 @@
++#include <stdint.h>
++#include <stdlib.h>
++#include <stdbool.h>
++
++#include <libdrm_macros.h>
++#include <xf86atomic.h>
++
++struct drm_vc4 {
++        bool close;
++        int fd;
++};
++
++struct drm_vc4_bo {
++        struct drm_vc4 *drm;
++        uint32_t handle;
++        uint32_t offset;
++        uint32_t flags;
++        uint32_t size;
++        atomic_t ref;
++        void *map;
++};
++
++int drm_vc4_new(struct drm_vc4 **drmp, int fd);
++void drm_vc4_close(struct drm_vc4 *drm);
++int drm_vc4_bo_new(struct drm_vc4_bo **bop, struct drm_vc4 *drm,
++				uint32_t flags, uint32_t size);
++int drm_vc4_bo_wrap(struct drm_vc4_bo **bop, struct drm_vc4 *drm,
++				uint32_t handle, uint32_t flags, uint32_t size);
++struct drm_vc4_bo *drm_vc4_bo_ref(struct drm_vc4_bo *bo);
++void drm_vc4_bo_unref(struct drm_vc4_bo *bo);
++int drm_vc4_bo_get_handle(struct drm_vc4_bo *bo, uint32_t *handle);
++int drm_vc4_bo_map(struct drm_vc4_bo *bo, void **ptr);
++int drm_vc4_bo_unmap(struct drm_vc4_bo *bo);
++int drm_vc4_bo_get_flags(struct drm_vc4_bo *bo, uint32_t *flags);
++int drm_vc4_bo_set_flags(struct drm_vc4_bo *bo, uint32_t flags);

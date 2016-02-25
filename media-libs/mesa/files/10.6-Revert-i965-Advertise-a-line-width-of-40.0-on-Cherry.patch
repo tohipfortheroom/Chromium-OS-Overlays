@@ -1,0 +1,36 @@
+From e399676ce0af7f39ed0aa96e42f1a961e5b69e78 Mon Sep 17 00:00:00 2001
+From: Dhinakaran Pandiyan <dhinakaran.pandiyan@intel.com>
+Date: Wed, 17 Jun 2015 12:24:05 -0700
+Subject: [PATCH] Revert "i965: Advertise a line width of 40.0 on Cherryview
+ and Skylake."
+
+This reverts commit f3b709c0ac073cd0ec90a3a0d91d1ee94668e043.
+
+Conflicts:
+	src/mesa/drivers/dri/i965/brw_context.c
+
+Change-Id: I5d50e4a87fc4be009426798c361f2ff2cd86cd6d
+---
+ src/mesa/drivers/dri/i965/brw_context.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_context.c b/src/mesa/drivers/dri/i965/brw_context.c
+index d2c641d..5206359 100644
+--- a/src/mesa/drivers/dri/i965/brw_context.c
++++ b/src/mesa/drivers/dri/i965/brw_context.c
+@@ -425,11 +425,7 @@ brw_initialize_context_constants(struct brw_context *brw)
+ 
+    ctx->Const.MinLineWidth = 1.0;
+    ctx->Const.MinLineWidthAA = 1.0;
+-   if (brw->gen >= 9 || brw->is_cherryview) {
+-      ctx->Const.MaxLineWidth = 40.0;
+-      ctx->Const.MaxLineWidthAA = 40.0;
+-      ctx->Const.LineWidthGranularity = 0.125;
+-   } else if (brw->gen >= 6) {
++   if (brw->gen >= 6) {
+       ctx->Const.MaxLineWidth = 7.375;
+       ctx->Const.MaxLineWidthAA = 7.375;
+       ctx->Const.LineWidthGranularity = 0.125;
+-- 
+1.9.1
+

@@ -1,0 +1,60 @@
+From 7389fdc4f8d5c2250dcd37126f39615ea6079079 Mon Sep 17 00:00:00 2001
+From: Zach Reizner <zachr@google.com>
+Date: Fri, 3 Apr 2015 13:04:26 -0700
+Subject: [PATCH 26/27] dri: in swrast use render nodes and custom VGEM dump
+ map ioctl
+
+BUG=chromium:469666
+TEST=boot freon ChromeOS under qemu and see the UI
+CQ-DEPEND=CL:262952,CL:263990,CL:264000,CL:263991
+
+Change-Id: Ie2b24dc416eef5e8fbc4395db5142b3d960285d6
+---
+ src/gallium/winsys/sw/dri/dri_sw_winsys.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/src/gallium/winsys/sw/dri/dri_sw_winsys.c b/src/gallium/winsys/sw/dri/dri_sw_winsys.c
+index 4e8b4cb..30d2d66 100644
+--- a/src/gallium/winsys/sw/dri/dri_sw_winsys.c
++++ b/src/gallium/winsys/sw/dri/dri_sw_winsys.c
+@@ -35,6 +35,7 @@
+ 
+ #if defined(HAVE_LIBDRM)
+ #include <xf86drm.h>
++#include <vgem_drm.h>
+ #endif
+ 
+ #include "pipe/p_compiler.h"
+@@ -84,9 +85,9 @@ struct dri_sw_winsys
+ #if defined(HAVE_LIBDRM)
+ 
+ const char g_sys_card_path_format[] =
+-   "/sys/bus/platform/devices/vgem/drm/card%d";
++   "/sys/bus/platform/devices/vgem/drm/renderD%d";
+ const char g_dev_card_path_format[] =
+-   "/dev/dri/card%d";
++   "/dev/dri/renderD%d";
+ 
+ static int
+ drm_open_vgem()
+@@ -94,7 +95,7 @@ drm_open_vgem()
+    char *name;
+    int i, fd;
+ 
+-   for (i = 0; i < 16; i++) {
++   for (i = 128; i >= 0; i++) {
+       struct stat _stat;
+       int ret;
+       ret = asprintf(&name, g_sys_card_path_format, i);
+@@ -129,7 +130,7 @@ mmap_dumb_bo(int fd, int handle, size_t size)
+ 
+    mmap_arg.handle = handle;
+ 
+-   ret = drmIoctl(fd, DRM_IOCTL_MODE_MAP_DUMB, &mmap_arg);
++   ret = drmIoctl(fd, DRM_IOCTL_VGEM_MODE_MAP_DUMB, &mmap_arg);
+    if (ret)
+       return NULL;
+ 
+-- 
+2.3.1
+

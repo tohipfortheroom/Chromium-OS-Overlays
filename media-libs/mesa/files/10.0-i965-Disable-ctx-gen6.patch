@@ -1,0 +1,27 @@
+From f7a3657ff0946cbc48ceef987c7c8d4ec81a2458 Mon Sep 17 00:00:00 2001
+From: James Ausmus <james.ausmus@intel.com>
+Date: Tue, 5 May 2015 14:26:08 -0700
+Subject: [PATCH 14/27] CHROMIUM: 10.0-i965-Disable-ctx-gen6.patch
+
+Change-Id: I7a2e5fa9fbe8d9882bedaaf4ecc7b10da414adf8
+Signed-off-by: James Ausmus <james.ausmus@intel.com>
+---
+ src/mesa/drivers/dri/i965/brw_context.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_context.c b/src/mesa/drivers/dri/i965/brw_context.c
+index d6a7355..bab3a5d 100644
+--- a/src/mesa/drivers/dri/i965/brw_context.c
++++ b/src/mesa/drivers/dri/i965/brw_context.c
+@@ -828,7 +828,7 @@ brwCreateContext(gl_api api,
+ 
+    intel_batchbuffer_init(brw);
+ 
+-   if (brw->gen >= 6) {
++   if (brw->gen >= 7) {
+       /* Create a new hardware context.  Using a hardware context means that
+        * our GPU state will be saved/restored on context switch, allowing us
+        * to assume that the GPU is in the same state we left it in.
+-- 
+2.3.1
+

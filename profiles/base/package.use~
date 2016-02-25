@@ -1,0 +1,5 @@
+media-libs/mesa egl gbm gles1 gles2 shared-glapi
+media-libs/piglit waffle
+media-libs/waffle gbm
+x11-base/xorg-server glamor suid
+chromeos-base/chromeos-chrome chrome_media

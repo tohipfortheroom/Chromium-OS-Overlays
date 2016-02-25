@@ -1,0 +1,26 @@
+From 293dcc1c42c9383e8a00efd25afd6573fb66cd6f Mon Sep 17 00:00:00 2001
+From: "Ilja H. Friedel" <ihf@chromium.org>
+Date: Fri, 8 Aug 2014 21:43:55 -0700
+Subject: [PATCH] Replace hard coded 'lib' with '@LIBDIR@'.
+
+This allows us to use sed to replace @LIBDIR@ with $(get_libdir).
+---
+ piglit | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/piglit b/piglit
+index 4c9a24e..275aba5 100755
+--- a/piglit
++++ b/piglit
+@@ -64,7 +64,7 @@ if not path.exists('framework/exectest.py'):
+         # In the install case we have another problem, one could have multiple
+         # piglits installed as piglit${the_date_of_install}, and we need to
+         # detect that.
+-        install_path = path.abspath(path.join(dirpath, '..', 'lib', piglit))
++        install_path = path.abspath(path.join(dirpath, '..', '@LIBDIR@', piglit))
+         sys.path.append(install_path)
+ 
+ import framework.programs.run as run
+-- 
+1.8.3.2
+

@@ -1,0 +1,1 @@
+coherent_pool=16M  smsc95xx.turbo_mode=N cma=512 dwc_otg.lpm_enable=0 console=ttyAMA0 root=/dev/mmcblk0p3 rootfstype=ext2 rootwait ro

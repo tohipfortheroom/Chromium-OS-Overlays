@@ -1,0 +1,32 @@
+From 3f5ac944edd4401d9815f1e291fabafb51ef9b41 Mon Sep 17 00:00:00 2001
+From: James Ausmus <james.ausmus@intel.com>
+Date: Mon, 4 May 2015 15:05:00 -0700
+Subject: [PATCH 12/27] CHROMIUM: 10.0-no-fail-hwctx.patch
+
+Change-Id: I4b83a0253db06e7314b4866a6128c880e65b3e8f
+Signed-off-by: James Ausmus <james.ausmus@intel.com>
+---
+ src/mesa/drivers/dri/i965/brw_context.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_context.c b/src/mesa/drivers/dri/i965/brw_context.c
+index dfd0031..d6a7355 100644
+--- a/src/mesa/drivers/dri/i965/brw_context.c
++++ b/src/mesa/drivers/dri/i965/brw_context.c
+@@ -838,11 +838,11 @@ brwCreateContext(gl_api api,
+        */
+       brw->hw_ctx = drm_intel_gem_context_create(brw->bufmgr);
+ 
+-      if (!brw->hw_ctx) {
++/*      if (!brw->hw_ctx) {
+          fprintf(stderr, "Gen6+ requires Kernel 3.6 or later.\n");
+          intelDestroyContext(driContextPriv);
+          return false;
+-      }
++      }*/
+    }
+ 
+    brw_init_state(brw);
+-- 
+2.3.1
+

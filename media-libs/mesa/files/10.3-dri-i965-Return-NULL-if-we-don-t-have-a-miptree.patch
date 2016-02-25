@@ -1,0 +1,32 @@
+From a409a8293994c44b15f39d5dafef81cc9e2a84a7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?St=C3=A9phane=20Marchesin?= <marcheu@chromium.org>
+Date: Tue, 24 Jun 2014 15:32:37 -0700
+Subject: [PATCH 15/27] dri/i965: Return NULL if we don't have a miptree
+
+If we have no miptree (irb->mt == NULL) we still go ahead and look at
+the stencil miptree, which causes crashes.
+
+BUG=chromium:387897
+TEST=can't reproduce the bug, but compiles and runs
+
+Change-Id: Ia665c749444399aa339c34a5b3461c514ba92fb4
+---
+ src/mesa/drivers/dri/i965/brw_misc_state.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_misc_state.c b/src/mesa/drivers/dri/i965/brw_misc_state.c
+index 78a46cb..4ee70bf 100644
+--- a/src/mesa/drivers/dri/i965/brw_misc_state.c
++++ b/src/mesa/drivers/dri/i965/brw_misc_state.c
+@@ -212,6 +212,8 @@ get_stencil_miptree(struct intel_renderbuffer *irb)
+ {
+    if (!irb)
+       return NULL;
++   if (!irb->mt)
++      return NULL;
+    if (irb->mt->stencil_mt)
+       return irb->mt->stencil_mt;
+    return irb->mt;
+-- 
+2.3.1
+

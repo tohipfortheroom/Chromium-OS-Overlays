@@ -1,0 +1,4 @@
+# Copyright 2015 The Chromium OS Authors. All rights reserved.
+# Distributed under the terms of the GNU General Public License v2
+
+VIDEO_CARDS="vc4 -i915 -i965 -intel -il0"

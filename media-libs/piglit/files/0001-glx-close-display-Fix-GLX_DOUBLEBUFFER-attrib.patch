@@ -1,0 +1,31 @@
+From 9f51c2759d83e4363a54c824bcc40cffbc74c0a2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jos=C3=A9=20Fonseca?= <jfonseca@vmware.com>
+Date: Fri, 14 Nov 2014 14:29:01 +0000
+Subject: [PATCH] glx-close-display: Fix GLX_DOUBLEBUFFER attrib.
+
+https://www.opengl.org/sdk/docs/man2/xhtml/glXChooseFBConfig.xml states
+that
+
+  "GLX_DOUBLEBUFFER Must be followed by True or False."
+
+No idea how this ever passed given the buffer overflow that ensued.
+---
+ tests/glx/glx-close-display.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/glx/glx-close-display.c b/tests/glx/glx-close-display.c
+index 7a2c71f..946f1f3 100644
+--- a/tests/glx/glx-close-display.c
++++ b/tests/glx/glx-close-display.c
+@@ -48,7 +48,7 @@ isDirectRendering(void)
+ 	int attribList[] = {
+ 		GLX_DRAWABLE_TYPE, GLX_USE_GL,
+ 		GLX_RENDER_TYPE, GLX_USE_GL,
+-		GLX_DOUBLEBUFFER,
++		GLX_DOUBLEBUFFER, True,
+ 		0
+ 	};
+ 	int nitems = 0;
+-- 
+2.2.0.rc0.207.ga3a616c
+

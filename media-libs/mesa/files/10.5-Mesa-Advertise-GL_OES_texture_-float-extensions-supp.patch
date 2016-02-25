@@ -1,0 +1,36 @@
+From e638841b87a5d9454739195b49c403ca9a22a59e Mon Sep 17 00:00:00 2001
+From: Kalyan Kondapally <kondapallykalyancontribute@gmail.com>
+Date: Wed, 7 Jan 2015 20:30:27 -0800
+Subject: [PATCH] Mesa: Advertise GL_OES_texture_*float* extensions support
+ with i965.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch advertises support for GL_OES_texture_*float* extensions
+when using i965 drivers.
+
+Signed-off-by: Kevin Rogovin <kevin.rogovin@intel.com>
+Signed-off-by: Kalyan Kondapally <kalyan.kondapally@intel.com>
+Reviewed-by: Tapani Pälli <tapani.palli@intel.com>
+---
+ src/mesa/drivers/dri/i965/intel_extensions.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/mesa/drivers/dri/i965/intel_extensions.c b/src/mesa/drivers/dri/i965/intel_extensions.c
+index 3cbfaaf..2187e73 100644
+--- a/src/mesa/drivers/dri/i965/intel_extensions.c
++++ b/src/mesa/drivers/dri/i965/intel_extensions.c
+@@ -344,4 +344,9 @@ intelInitExtensions(struct gl_context *ctx)
+ 
+    if (brw->gen == 7)
+       ctx->Extensions.ARB_gpu_shader5 = true;
++
++   ctx->Extensions.OES_texture_float = true;
++   ctx->Extensions.OES_texture_float_linear = true;
++   ctx->Extensions.OES_texture_half_float = true;
++   ctx->Extensions.OES_texture_half_float_linear = true;
+ }
+-- 
+2.4.3.573.g4eafbef
+

@@ -1,0 +1,58 @@
+From fd0d50a0bbd3ed361edc39822f40fe0ba239772a Mon Sep 17 00:00:00 2001
+From: "Ilja H. Friedel" <ihf@chromium.org>
+Date: Thu, 14 Aug 2014 20:20:47 -0700
+Subject: [PATCH] piglit: Fix tegra build break.
+
+egl_khr_fence_sync.c:1106: undefined reference to `eglCreateSyncKHR'
+egl_khr_fence_sync.c:1113: undefined reference to `eglClientWaitSyncKHR'
+egl_khr_fence_sync.c:1122: undefined reference to `eglDestroySyncKHR'
+egl_khr_fence_sync.c:1066: undefined reference to `eglCreateSyncKHR'
+
+BUG=chromium:389430
+TEST=emerge-daisy/link/nyan_big piglt
+---
+ tests/egl/spec/egl_khr_fence_sync/egl_khr_fence_sync.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/tests/egl/spec/egl_khr_fence_sync/egl_khr_fence_sync.c b/tests/egl/spec/egl_khr_fence_sync/egl_khr_fence_sync.c
+index 707083a..85175bb 100644
+--- a/tests/egl/spec/egl_khr_fence_sync/egl_khr_fence_sync.c
++++ b/tests/egl/spec/egl_khr_fence_sync/egl_khr_fence_sync.c
+@@ -1063,7 +1063,7 @@ test_eglCreateSyncKHR_wrong_display_same_thread(void *test_data)
+ 	piglit_require_egl_extension(wrong_dpy, "EGL_KHR_fence_sync");
+ 
+ 	piglit_logi("try to create sync with second display");
+-	sync = eglCreateSyncKHR(wrong_dpy, EGL_SYNC_FENCE_KHR, NULL);
++	sync = peglCreateSyncKHR(wrong_dpy, EGL_SYNC_FENCE_KHR, NULL);
+ 	if (sync) {
+ 		piglit_loge("eglCreateSyncKHR() incorrectly succeeded");
+ 		result = PIGLIT_FAIL;
+@@ -1103,14 +1103,14 @@ check_sync_in_current_context(void)
+ 
+ 	piglit_logi("verify that syncs can be created and waited on in "
+ 		 "this thread");
+-	sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
++	sync = peglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
+ 	if (!sync) {
+ 		piglit_loge("eglCreateSyncKHR failed");
+ 		result = PIGLIT_FAIL;
+ 		goto cleanup;
+ 	}
+ 
+-	wait_status = eglClientWaitSyncKHR(dpy, sync, 0, 0);
++	wait_status = peglClientWaitSyncKHR(dpy, sync, 0, 0);
+ 	if (wait_status == EGL_FALSE) {
+ 		piglit_loge("eglClientWaitSyncKHR failed");
+ 		result = PIGLIT_FAIL;
+@@ -1119,7 +1119,7 @@ check_sync_in_current_context(void)
+ 
+ cleanup:
+ 	if (sync) {
+-		eglDestroySyncKHR(dpy, sync);
++		peglDestroySyncKHR(dpy, sync);
+ 	}
+ 	return result;
+ }
+-- 
+1.8.3.2
+

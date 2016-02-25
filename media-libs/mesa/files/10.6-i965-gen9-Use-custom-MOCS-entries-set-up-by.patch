@@ -1,0 +1,87 @@
+From fd1079581c148110af94c60d3a01002299e961e4 Mon Sep 17 00:00:00 2001
+From: Francisco Jerez <currojerez@riseup.net>
+Date: Wed, 1 Jul 2015 16:32:24 +0300
+Subject: [PATCH] BACKPORT: i965/gen9: Use custom MOCS entries set up by the
+ kernel.
+
+Instead of relying on hardware defaults the i915 kernel driver is
+going program custom MOCS tables system-wide on Gen9 hardware.  The
+"WT" entry previously used for renderbuffers had a number of problems:
+It disabled caching on eLLC, it used a reserved L3 cacheability
+setting, and it used to override the PTE controls making renderbuffers
+always WT on LLC regardless of the kernel's setting.  Instead use an
+entry from the new MOCS tables with parameters: TC=LLC/eLLC, LeCC=PTE,
+L3CC=WB.
+
+The "WB" entry previously used for anything other than renderbuffers
+has moved to a different index in the new MOCS tables but it should
+have the same caching semantics as the old entry.
+
+Even though the corresponding kernel change ("drm/i915: Added
+Programming of the MOCS") is in a way an ABI break it doesn't seem
+necessary to check that the kernel is recent enough because the change
+should only affect Gen9 which is still unreleased hardware.
+
+v2: Update MOCS values for the new Android-incompatible tables
+    introduced in v7 of the kernel patch.
+
+Cc: 10.6 <mesa-stable@lists.freedesktop.org>
+Reference: http://lists.freedesktop.org/archives/intel-gfx/2015-July/071080.html
+Reviewed-by: Ben Widawsky <ben@bwidawsk.net>
+(cherry picked from commit af768922cafa3eb3e78a2fdfee90380a74c79460)
+Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+
+Conflicts:
+	src/mesa/drivers/dri/i965/brw_defines.h
+
+(cherry picked from commit 329763791b2a869f30a39b8d1f94b95dcb2c9e8e)
+Signed-off-by: James Ausmus <james.ausmus@intel.com>
+
+ Conflicts:
+	src/mesa/drivers/dri/i965/gen8_surface_state.c
+
+Change-Id: Idc30a445f5eb2b0eb3647c0d9ecc95e39d6be4ce
+---
+ src/mesa/drivers/dri/i965/brw_defines.h        | 11 ++++++-----
+ src/mesa/drivers/dri/i965/gen8_surface_state.c |  3 +--
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/brw_defines.h b/src/mesa/drivers/dri/i965/brw_defines.h
+index da6ed5b973e7..39fb1dd99a14 100644
+--- a/src/mesa/drivers/dri/i965/brw_defines.h
++++ b/src/mesa/drivers/dri/i965/brw_defines.h
+@@ -2436,11 +2436,12 @@ enum brw_wm_barycentric_interp_mode {
+ #define BDW_MOCS_WT  0x58
+ #define BDW_MOCS_PTE 0x18
+ 
+-/* Skylake: MOCS is now an index into an array of 64 different configurable
+- * cache settings.  We still use only either write-back or write-through; and
+- * rely on the documented default values.
++/* Skylake: MOCS is now an index into an array of 62 different caching
++ * configurations programmed by the kernel.
+  */
+-#define SKL_MOCS_WB 9
+-#define SKL_MOCS_WT 5
++/* TC=LLC/eLLC, LeCC=WB, LRUM=3, L3CC=WB */
++#define SKL_MOCS_WB  (2 << 1)
++/* TC=LLC/eLLC, LeCC=PTE, LRUM=3, L3CC=WB */
++#define SKL_MOCS_PTE (1 << 1)
+ 
+ #endif
+diff --git a/src/mesa/drivers/dri/i965/gen8_surface_state.c b/src/mesa/drivers/dri/i965/gen8_surface_state.c
+index ba59b054b14d..3e4a212a3c09 100644
+--- a/src/mesa/drivers/dri/i965/gen8_surface_state.c
++++ b/src/mesa/drivers/dri/i965/gen8_surface_state.c
+@@ -333,8 +333,7 @@ gen8_update_renderbuffer_surface(struct brw_context *brw,
+       rb->TexImage ? rb->TexImage->TexObject->Target : GL_TEXTURE_2D;
+    uint32_t surf_index =
+       brw->wm.prog_data->binding_table.render_target_start + unit;
+-   /* FINISHME: Use PTE MOCS on Skylake. */
+-   uint32_t mocs = brw->gen >= 9 ? SKL_MOCS_WT : BDW_MOCS_PTE;
++   const uint32_t mocs = brw->gen >= 9 ? SKL_MOCS_PTE : BDW_MOCS_PTE;
+ 
+    intel_miptree_used_for_rendering(mt);
+ 
+-- 
+2.5.1
+

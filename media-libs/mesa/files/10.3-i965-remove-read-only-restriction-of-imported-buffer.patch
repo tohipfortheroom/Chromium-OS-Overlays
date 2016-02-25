@@ -1,0 +1,94 @@
+From 965ec9112ee2bd4b58688aabb886943c5679fe90 Mon Sep 17 00:00:00 2001
+From: Zach Reizner <zachr@google.com>
+Date: Fri, 3 Oct 2014 16:20:10 -0700
+Subject: [PATCH 19/27] i965: remove read-only restriction of imported buffers
+
+---
+ src/mesa/drivers/dri/i965/intel_fbo.c       |  7 -------
+ src/mesa/drivers/dri/i965/intel_image.h     |  9 +--------
+ src/mesa/drivers/dri/i965/intel_screen.c    |  1 -
+ src/mesa/drivers/dri/i965/intel_tex_image.c | 18 ------------------
+ 4 files changed, 1 insertion(+), 34 deletions(-)
+
+diff --git a/src/mesa/drivers/dri/i965/intel_fbo.c b/src/mesa/drivers/dri/i965/intel_fbo.c
+index 2cf4771..3ac66dc 100644
+--- a/src/mesa/drivers/dri/i965/intel_fbo.c
++++ b/src/mesa/drivers/dri/i965/intel_fbo.c
+@@ -363,13 +363,6 @@ intel_image_target_renderbuffer_storage(struct gl_context *ctx,
+       return;
+    }
+ 
+-   /* Buffers originating from outside are for read-only. */
+-   if (image->dma_buf_imported) {
+-      _mesa_error(ctx, GL_INVALID_OPERATION,
+-            "glEGLImageTargetRenderbufferStorage(dma buffers are read-only)");
+-      return;
+-   }
+-
+    /* __DRIimage is opaque to the core so it has to be checked here */
+    switch (image->format) {
+    case MESA_FORMAT_R8G8B8A8_UNORM:
+diff --git a/src/mesa/drivers/dri/i965/intel_image.h b/src/mesa/drivers/dri/i965/intel_image.h
+index 0cae711..e6ad06e 100644
+--- a/src/mesa/drivers/dri/i965/intel_image.h
++++ b/src/mesa/drivers/dri/i965/intel_image.h
+@@ -89,14 +89,7 @@ struct __DRIimageRec {
+    GLuint tile_y;
+    bool has_depthstencil;
+ 
+-   /**
+-    * Provided by EGL_EXT_image_dma_buf_import.
+-    *
+-    * The flag is set in order to restrict the use of the image later on.
+-    *
+-    * See intel_image_target_texture_2d()
+-    */
+-   bool dma_buf_imported;
++   /* Provided by EGL_EXT_image_dma_buf_import */
+    enum __DRIYUVColorSpace yuv_color_space;
+    enum __DRISampleRange sample_range;
+    enum __DRIChromaSiting horizontal_siting;
+diff --git a/src/mesa/drivers/dri/i965/intel_screen.c b/src/mesa/drivers/dri/i965/intel_screen.c
+index cb9710f..61a6893 100644
+--- a/src/mesa/drivers/dri/i965/intel_screen.c
++++ b/src/mesa/drivers/dri/i965/intel_screen.c
+@@ -747,7 +747,6 @@ intel_create_image_from_dma_bufs(__DRIscreen *screen,
+       return NULL;
+    }
+ 
+-   image->dma_buf_imported = true;
+    image->yuv_color_space = yuv_color_space;
+    image->sample_range = sample_range;
+    image->horizontal_siting = horizontal_siting;
+diff --git a/src/mesa/drivers/dri/i965/intel_tex_image.c b/src/mesa/drivers/dri/i965/intel_tex_image.c
+index 00bf9ce..e26581d 100644
+--- a/src/mesa/drivers/dri/i965/intel_tex_image.c
++++ b/src/mesa/drivers/dri/i965/intel_tex_image.c
+@@ -317,24 +317,6 @@ intel_image_target_texture_2d(struct gl_context *ctx, GLenum target,
+    if (image == NULL)
+       return;
+ 
+-   /**
+-    * Images originating via EGL_EXT_image_dma_buf_import can be used only
+-    * with GL_OES_EGL_image_external only.
+-    */
+-   if (image->dma_buf_imported && target != GL_TEXTURE_EXTERNAL_OES) {
+-      _mesa_error(ctx, GL_INVALID_OPERATION,
+-            "glEGLImageTargetTexture2DOES(dma buffers can be used with "
+-               "GL_OES_EGL_image_external only");
+-      return;
+-   }
+-
+-   if (target == GL_TEXTURE_EXTERNAL_OES && !image->dma_buf_imported) {
+-      _mesa_error(ctx, GL_INVALID_OPERATION,
+-            "glEGLImageTargetTexture2DOES(external target is enabled only "
+-               "for images created with EGL_EXT_image_dma_buf_import");
+-      return;
+-   }
+-
+    /* Disallow depth/stencil textures: we don't have a way to pass the
+     * separate stencil miptree of a GL_DEPTH_STENCIL texture through.
+     */
+-- 
+2.3.1
+

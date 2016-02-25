@@ -1,0 +1,32 @@
+From 23ce2b333e47305775d40441f99b06fb7e096990 Mon Sep 17 00:00:00 2001
+From: Haixia Shi <hshi@chromium.org>
+Date: Wed, 22 Apr 2015 11:09:01 -0700
+Subject: [PATCH 27/27] i915g: force tile-x
+
+Change-Id: I6bb9eb6477c84e186ad3482197c400a201a3ecd7
+---
+ src/gallium/drivers/i915/i915_resource_texture.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/src/gallium/drivers/i915/i915_resource_texture.c b/src/gallium/drivers/i915/i915_resource_texture.c
+index dc8f4d1c9..f07e794 100644
+--- a/src/gallium/drivers/i915/i915_resource_texture.c
++++ b/src/gallium/drivers/i915/i915_resource_texture.c
+@@ -181,13 +181,7 @@ i915_texture_tiling(struct i915_screen *is, struct i915_texture *tex)
+    if (tex->b.b.target == PIPE_TEXTURE_1D)
+       return I915_TILE_NONE;
+ 
+-   if (util_format_is_s3tc(tex->b.b.format))
+-      return I915_TILE_X;
+-
+-   if (is->debug.use_blitter)
+-      return I915_TILE_X;
+-   else
+-      return I915_TILE_Y;
++   return I915_TILE_X;
+ }
+ 
+ 
+-- 
+2.3.1
+
